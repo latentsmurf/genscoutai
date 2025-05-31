@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -77,7 +78,7 @@ export default function GenScoutAIClient() {
   }, [toast]);
 
   const handleWeatherConditionChange = useCallback(async (value: string) => {
-    if (!value) {
+    if (!value || value === "none") {
       setWeatherCondition('');
       setGeneratedWeatherPrompt('');
       return;
@@ -99,6 +100,7 @@ export default function GenScoutAIClient() {
 
   useEffect(() => {
     handleTimeOfDayChange(timeOfDay);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount for initial time
 
   const handleSnapshot = () => {
@@ -242,7 +244,7 @@ export default function GenScoutAIClient() {
                         <SelectValue placeholder="Select weather" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value=""><span className="italic text-muted-foreground">None</span></SelectItem>
+                        <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
                         <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
                         <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
                         <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
@@ -275,3 +277,5 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
+    
