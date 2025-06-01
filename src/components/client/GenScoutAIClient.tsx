@@ -232,7 +232,6 @@ export default function GenScoutAIClient() {
       if (status === 'ERROR' && message) { 
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
-      // For ZERO_RESULTS, no toast is shown by GenScoutAIClient, StreetViewDisplay handles it.
     }
   }, [toast]);
 
@@ -245,8 +244,8 @@ export default function GenScoutAIClient() {
       setGeneratedTimePrompt(result.promptToken);
     } catch (error) {
       console.error("Error generating time of day prompt:", error);
-      setGeneratedTimePrompt('Error');
-      toast({ title: "AI Error", description: "Failed to generate time-of-day token.", variant: "destructive" });
+      setGeneratedTimePrompt('Error'); // Keep UI showing error if this specific call fails
+      toast({ title: "AI Error", description: "Failed to generate time-of-day token for display.", variant: "destructive" });
     } finally {
       setIsLoadingTimePrompt(false);
     }
@@ -266,8 +265,8 @@ export default function GenScoutAIClient() {
       setGeneratedWeatherPrompt(result.prompt);
     } catch (error) {
       console.error("Error generating weather condition prompt:", error);
-      setGeneratedWeatherPrompt('Error');
-      toast({ title: "AI Error", description: "Failed to generate weather prompt.", variant: "destructive" });
+      setGeneratedWeatherPrompt('Error'); // Keep UI showing error
+      toast({ title: "AI Error", description: "Failed to generate weather prompt for display.", variant: "destructive" });
     } finally {
       setIsLoadingWeatherPrompt(false);
     }
@@ -477,21 +476,57 @@ export default function GenScoutAIClient() {
   useEffect(() => {
     if (googleMapsApiLoaded) { 
         handleTimeOfDayChange(timeOfDay);
+        // Initially, weather is 'none', so generatedWeatherPrompt is '', which is fine.
+        // handleWeatherConditionChange will be called if the user selects a weather.
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiLoaded]); 
+  }, [googleMapsApiLoaded]); // Only run once when API is loaded
 
 
-  const processSnapshotAndGenerateAI = async (base64StreetViewImage: string, currentModificationInstruction?: string) => {
-    if (isGeneratingCinematicImage) return; 
+  const processSnapshotAndGenerateAI = async (
+    base64StreetViewImage: string,
+    currentModificationInstruction?: string
+  ) => {
+    if (isGeneratingCinematicImage) return;
     setIsGeneratingCinematicImage(true);
-    setGeneratedCinematicImage(null); 
+    setGeneratedCinematicImage(null);
+
+    let finalTimePrompt = generatedTimePrompt;
+    let finalWeatherPrompt = generatedWeatherPrompt;
+    let tempIsLoadingTime = false;
+    let tempIsLoadingWeather = false;
+
     try {
+      // 1. Fetch fresh Time-of-Day Token
+      tempIsLoadingTime = true;
+      setIsLoadingTimePrompt(true);
+      const timeInput: GenerateTimeOfDayPromptInput = { time: timeOfDay };
+      const timeResult = await generateTimeOfDayPrompt(timeInput);
+      finalTimePrompt = timeResult.promptToken;
+      setGeneratedTimePrompt(finalTimePrompt); // Update UI display state
+      tempIsLoadingTime = false;
+      setIsLoadingTimePrompt(false);
+
+      // 2. Fetch fresh Weather Condition Prompt
+      if (weatherCondition && weatherCondition !== "none") {
+        tempIsLoadingWeather = true;
+        setIsLoadingWeatherPrompt(true);
+        const weatherInput: GenerateWeatherConditionInput = { weatherCondition: weatherCondition };
+        const weatherResult = await generateWeatherConditionPrompt(weatherInput);
+        finalWeatherPrompt = weatherResult.prompt;
+        setGeneratedWeatherPrompt(finalWeatherPrompt); // Update UI display state
+        tempIsLoadingWeather = false;
+        setIsLoadingWeatherPrompt(false);
+      } else {
+        finalWeatherPrompt = 'clear sky'; // Default for 'none' weather
+        setGeneratedWeatherPrompt(''); // Clear UI display for weather prompt
+      }
+
       const aiInput: GenerateCinematicShotInput = {
         streetViewImageDataUri: base64StreetViewImage,
         focalLength: selectedLens,
-        timeOfDayToken: generatedTimePrompt || 'noon',
-        weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
+        timeOfDayToken: finalTimePrompt,
+        weatherConditionPrompt: finalWeatherPrompt,
         sceneDescription: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
         shotDirection: shotDirection,
         modificationInstruction: currentModificationInstruction || undefined,
@@ -502,7 +537,7 @@ export default function GenScoutAIClient() {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         setSnapshotOverlays({
             lens: selectedLens,
-            time: generatedTimePrompt,
+            time: finalTimePrompt, // Use the freshly fetched prompt
             weather: weatherCondition !== 'none' ? weatherCondition : 'Clear'
         });
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
@@ -522,6 +557,9 @@ export default function GenScoutAIClient() {
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false); 
     } finally {
       setIsGeneratingCinematicImage(false);
+      // Ensure loading states are reset if they were set
+      if (tempIsLoadingTime) setIsLoadingTimePrompt(false);
+      if (tempIsLoadingWeather) setIsLoadingWeatherPrompt(false);
     }
   };
 
@@ -549,8 +587,8 @@ export default function GenScoutAIClient() {
     }
     const staticImageUrl = `https://maps.googleapis.com/maps/api/streetview?pano=${panoId}&size=800x450&heading=${pov.heading}&pitch=${pov.pitch}&fov=${fov}&key=${googleMapsApiKey}`;
 
-    setIsGeneratingCinematicImage(true); 
-    setGeneratedCinematicImage(null); 
+    // No setIsGeneratingCinematicImage(true) here; processSnapshotAndGenerateAI will handle it.
+    // No setGeneratedCinematicImage(null) here; processSnapshotAndGenerateAI will handle it.
 
     try {
       const response = await fetch(staticImageUrl);
@@ -578,20 +616,20 @@ export default function GenScoutAIClient() {
       });
       
       setLastStreetViewSnapshotDataUri(base64data); 
-      setModificationPrompt(""); // Clear previous modification prompt on new snapshot
+      setModificationPrompt(""); 
       await processSnapshotAndGenerateAI(base64data); 
 
     } catch (error) {
       console.error("Error fetching/processing Street View snapshot:", error);
       setLastStreetViewSnapshotDataUri(null);
-      setGeneratedCinematicImage(null);
+      // setGeneratedCinematicImage(null); // processSnapshot handles this
       toast({
           title: "Street View Snapshot Failed",
           description: `Could not fetch or process Street View image. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
           duration: 10000,
       });
-      setIsGeneratingCinematicImage(false); 
+      // setIsGeneratingCinematicImage(false); // processSnapshot handles this
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false);
     }
   };
@@ -604,7 +642,7 @@ export default function GenScoutAIClient() {
     if (isGeneratingCinematicImage) return; 
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri); // Regenerate without modification prompt
+    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri); 
   };
 
   const handleModifyAndRegenerate = async () => {
@@ -888,8 +926,7 @@ export default function GenScoutAIClient() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update.
-                    For now, please use screen capture to save your layouts and annotate with external image editing software.
+                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
                   </p>
                  </CardContent>
               )}
@@ -1011,8 +1048,6 @@ export default function GenScoutAIClient() {
                     </Button>
                 </div>
                 {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-                {/* The following line is removed as StreetViewDisplay will handle its own status messages */}
-                {/* {googleMapsApiLoaded && currentDisplayMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>} */}
                 {googleMapsApiLoaded && currentDisplayMode !== 'streetview' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
                 {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
               </CardContent>
