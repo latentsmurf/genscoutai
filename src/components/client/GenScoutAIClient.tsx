@@ -267,14 +267,63 @@ export default function GenScoutAIClient() {
 
   const handleDownloadImage = useCallback(() => {
     if (generatedCinematicImage) {
-      const link = document.createElement('a');
-      link.href = generatedCinematicImage;
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      link.download = `genscoutai-cinematic-shot-${timestamp}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Image Downloading", description: "Your cinematic shot is being downloaded."});
+      try {
+        const image = new window.Image();
+        image.src = generatedCinematicImage;
+  
+        image.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            toast({ title: "Download Failed", description: "Could not create drawing context for watermark.", variant: "destructive"});
+            return;
+          }
+  
+          canvas.width = image.width;
+          canvas.height = image.height;
+  
+          ctx.drawImage(image, 0, 0);
+  
+          const watermarkText = "www.GenScout.ai";
+          const fontSize = Math.max(12, Math.min(24, Math.round(image.height * 0.025)));
+          ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+          ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+          ctx.textAlign = "right";
+          ctx.textBaseline = "bottom";
+          const padding = Math.max(10, Math.round(image.width * 0.01));
+  
+          ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+          ctx.shadowBlur = 3;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+  
+          ctx.fillText(watermarkText, canvas.width - padding, canvas.height - padding);
+          
+          ctx.shadowColor = "transparent"; // Reset shadow
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+
+          const watermarkedImageUri = canvas.toDataURL('image/png');
+  
+          const link = document.createElement('a');
+          link.href = watermarkedImageUri;
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          link.download = `genscoutai-cinematic-shot-${timestamp}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          toast({ title: "Image Downloading", description: "Your watermarked cinematic shot is being downloaded."});
+        };
+  
+        image.onerror = () => {
+           toast({ title: "Download Failed", description: "Could not load image for watermarking.", variant: "destructive"});
+        }
+  
+      } catch (error) {
+        console.error("Error during image watermarking and download:", error);
+        toast({ title: "Download Failed", description: "An error occurred while preparing the image for download.", variant: "destructive"});
+      }
     } else {
       toast({ title: "Download Failed", description: "No image available to download.", variant: "destructive"});
     }
