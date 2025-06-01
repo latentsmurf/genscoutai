@@ -341,7 +341,16 @@ export default function GenScoutAIClient() {
     } catch (error) {
       console.error("Error processing snapshot or generating AI image:", error);
       setGeneratedCinematicImage(null);
-      toast({ title: "Snapshot Failed", description: `Could not process Street View or generate AI image. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+      let description = `Could not process Street View or generate AI image. ${error instanceof Error ? error.message : ''}`;
+      if (error instanceof Error && error.message.includes("403")) {
+        description += " A 403 error often means the Static Street View API is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
+      }
+      toast({ 
+          title: "Snapshot Failed", 
+          description: description, 
+          variant: "destructive",
+          duration: 10000, // Give more time to read the detailed message
+      });
     } finally {
       setIsGeneratingCinematicImage(false);
     }
@@ -359,14 +368,14 @@ export default function GenScoutAIClient() {
     const panorama = streetViewPanoramaRef.current;
     const pov = panorama.getPov();
     const zoom = panorama.getZoom();
-    const panoId = panorama.getPano(); // Correct method to get Pano ID
+    const panoId = panorama.getPano(); 
 
-    if (panoId) {
+    if (panoId && googleMapsApiKey) {
         await processSnapshot(panoId, pov, zoom, googleMapsApiKey);
     } else {
-        // This case should ideally not be reached if isStreetViewReady is true and panorama object exists.
-        console.warn("Pano ID is null or undefined even though Street View is thought to be ready.");
-        toast({ title: "Snapshot Error", description: "Could not retrieve Street View Pano ID. Please try re-searching the location.", variant: "destructive" });
+        const reason = !panoId ? "Could not retrieve Street View Pano ID." : "Google Maps API Key is missing.";
+        console.warn("Snapshot Error:", reason, {panoId, googleMapsApiKeyExists: !!googleMapsApiKey});
+        toast({ title: "Snapshot Error", description: `${reason} Please try re-searching the location or check API key configuration.`, variant: "destructive" });
         setIsGeneratingCinematicImage(false);
     }
   };
