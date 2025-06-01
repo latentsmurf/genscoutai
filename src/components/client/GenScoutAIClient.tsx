@@ -39,7 +39,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
@@ -85,12 +84,10 @@ export default function GenScoutAIClient() {
   const [locationInfo, setLocationInfo] = useState<string | null>(null);
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
 
-
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-
 
   // Constants
   const shotDirectionOptions = [
@@ -133,7 +130,6 @@ export default function GenScoutAIClient() {
       setIsLoadingLocationInfo(false);
     }
   }, [toast]);
-
 
   // Callbacks
   const handleLocationSearch = useCallback((query?: string) => {
@@ -244,23 +240,24 @@ export default function GenScoutAIClient() {
   const handleMapClick = useCallback((latLng: google.maps.LatLngLiteral) => {
     setCurrentMapCenter(latLng);
     setMarkerPosition(latLng);
+    const coordString = `coords:${latLng.lat},${latLng.lng}`;
+    setLocationForStreetView(coordString); // Always use precise coords for StreetView target from map click
+
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-      const coordString = `coords:${latLng.lat},${latLng.lng}`;
-      setLocationForStreetView(coordString);
-      fetchLocationInformation(coordString, latLng);
+      fetchLocationInformation(coordString, latLng); // Fetch info with coords string
       setViewMode('streetview');
       return;
     }
+
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
-      let addressForStreetView = `coords:${latLng.lat},${latLng.lng}`;
+      let locationNameForInfo = coordString;
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
-        addressForStreetView = results[0].formatted_address || addressForStreetView;
+        locationNameForInfo = results[0].formatted_address || coordString;
       } else {
-        console.warn("Reverse geocoding failed for map click, using raw coords:", status);
+        console.warn("Reverse geocoding failed for map click, using raw coords for info:", status);
       }
-      setLocationForStreetView(addressForStreetView);
-      fetchLocationInformation(addressForStreetView, latLng);
+      fetchLocationInformation(locationNameForInfo, latLng);
       setViewMode('streetview');
     });
   }, [googleMapsApiLoaded, fetchLocationInformation]);

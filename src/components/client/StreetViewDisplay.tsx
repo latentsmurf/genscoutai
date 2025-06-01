@@ -21,23 +21,22 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
 }) => {
   const streetViewContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
-  const [currentPanoId, setCurrentPanoId] = useState<string | null>(null);
+  const [_currentPanoId, setCurrentPanoId] = useState<string | null>(null); // Renamed to avoid confusion if used
   const [isStreetViewInitialized, setIsStreetViewInitialized] = useState(false);
 
 
   useEffect(() => {
-    if (!apiKey && streetViewContainerRef.current) {
+    if (!apiKey) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      // Message handled by overlay
       onStreetViewStatusChange('ERROR', 'Google Maps API Key is missing.');
-      setIsStreetViewInitialized(false); // It's not initialized if API key is missing
+      setIsStreetViewInitialized(false);
       setIsLoadingStreetView(false);
       return;
     }
 
     if (!isApiLoaded || !streetViewContainerRef.current || typeof window.google === 'undefined' || !window.google.maps) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      if (!isApiLoaded && apiKey) { // API key present but API not loaded
+      if (!isApiLoaded && apiKey) {
          onStreetViewStatusChange('ERROR', 'Google Maps API not loaded yet.');
       }
       setIsStreetViewInitialized(false);
@@ -46,7 +45,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
     }
     
     const isCoordinates = locationToLoad.startsWith('coords:');
-    let queryLocation: string | google.maps.LatLngLiteral | null = null;
+    let queryParamForService: string | google.maps.LatLngLiteral | null = null;
 
     if (isCoordinates) {
         const parts = locationToLoad.substring(7).split(',');
@@ -54,22 +53,22 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
             const lat = parseFloat(parts[0]);
             const lng = parseFloat(parts[1]);
             if (!isNaN(lat) && !isNaN(lng)) {
-                queryLocation = { lat, lng };
+                queryParamForService = { lat, lng };
             }
         }
     } else {
-        queryLocation = locationToLoad;
+        queryParamForService = locationToLoad;
     }
 
-    if (!queryLocation && locationToLoad) { // Invalid coordinate string format
+    if (!queryParamForService && locationToLoad) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      onStreetViewStatusChange('ERROR', `Invalid coordinates provided for Street View: ${locationToLoad}`);
+      onStreetViewStatusChange('ERROR', `Invalid location format provided: ${locationToLoad}`);
       setIsLoadingStreetView(false);
-      setIsStreetViewInitialized(true); // Considered initialized, but with an error state
+      setIsStreetViewInitialized(true); 
       return;
     }
     
-    if (!locationToLoad) { // No location at all
+    if (!locationToLoad) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
       onStreetViewStatusChange('ZERO_RESULTS', 'No location specified for Street View.');
       setIsLoadingStreetView(false);
@@ -77,23 +76,21 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
       return;
     }
 
-
     setIsLoadingStreetView(true);
-    setIsStreetViewInitialized(false); // Will be set to true once processing is done
+    setIsStreetViewInitialized(false);
 
-
-    const processLocation = (locationInput: string | google.maps.LatLng | google.maps.LatLngLiteral) => {
+    const processLocationForPanorama = (locationForPanoService: string | google.maps.LatLng | google.maps.LatLngLiteral) => {
         const streetViewService = new window.google.maps.StreetViewService();
         streetViewService.getPanorama(
           { 
-            location: locationInput, 
+            location: locationForPanoService, 
             radius: 50, 
-            source: window.google.maps.StreetViewSource.DEFAULT // Changed from OUTDOOR
+            source: window.google.maps.StreetViewSource.DEFAULT
           }, 
           (data, svStatus) => {
             setIsLoadingStreetView(false);
             setIsStreetViewInitialized(true);
-            if (svStatus === window.google.maps.StreetViewStatus.OK && data && data.location && data.location.latLng) {
+            if (svStatus === window.google.maps.StreetViewStatus.OK && streetViewContainerRef.current && data && data.location && data.location.pano && data.location.latLng) {
                 onStreetViewStatusChange('OK');
                 const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
                     pano: data.location.pano,
@@ -112,21 +109,13 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
                     motionTrackingControl: false,
                     disableDefaultUI: false, 
                 };
-
-                if (streetViewContainerRef.current) {
-                    if (!streetViewPanoramaRef.current) {
-                         streetViewPanoramaRef.current = new window.google.maps.StreetViewPanorama(
-                            streetViewContainerRef.current,
-                            panoramaOptions
-                        );
-                    } else {
-                        streetViewPanoramaRef.current.setPano(data.location.pano!);
-                        streetViewPanoramaRef.current.setPosition(data.location.latLng!);
-                        streetViewPanoramaRef.current.setOptions(panoramaOptions); // Re-apply all options
-                        streetViewPanoramaRef.current.setVisible(true);
-                    }
-                }
-                setCurrentPanoId(data.location.pano!);
+                
+                // Always create a new Panorama instance to ensure it's bound to the current div
+                streetViewPanoramaRef.current = new window.google.maps.StreetViewPanorama(
+                    streetViewContainerRef.current, // The local div in this instance of StreetViewDisplay
+                    panoramaOptions
+                );
+                setCurrentPanoId(data.location.pano);
 
             } else {
                 let userMessage = `Street View status: ${svStatus}.`;
@@ -141,27 +130,27 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
         });
     };
 
-    if (typeof queryLocation === 'string') {
+    if (typeof queryParamForService === 'string') { // Needs geocoding
         const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ address: queryLocation }, (results, status) => {
-            if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
-                processLocation(results[0].geometry.location);
+        geocoder.geocode({ address: queryParamForService }, (results, status) => {
+            if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry && results[0].geometry.location) {
+                processLocationForPanorama(results[0].geometry.location);
             } else {
                 setIsLoadingStreetView(false);
                 setIsStreetViewInitialized(true);
-                let userMessage = `Geocoding failed: ${status}`;
+                let userMessage = `Geocoding failed for Street View: ${status}`;
                  if (status === window.google.maps.GeocoderStatus.ZERO_RESULTS) {
-                    userMessage = `Could not find location: "${queryLocation}".`;
+                    userMessage = `Could not find location for Street View: "${queryParamForService}".`;
                 }
                 onStreetViewStatusChange('ERROR', userMessage);
                 if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
             }
         });
-    } else if (queryLocation) { 
-        processLocation(queryLocation as google.maps.LatLngLiteral);
+    } else if (queryParamForService) { // Is LatLngLiteral, use directly
+        processLocationForPanorama(queryParamForService as google.maps.LatLngLiteral);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationToLoad, apiKey, isApiLoaded]); // streetViewPanoramaRef and onStreetViewStatusChange removed to prevent potential loops
+  }, [locationToLoad, apiKey, isApiLoaded]); 
 
   const showLoadingOverlay = isApiLoaded && apiKey && (isLoadingStreetView || (!isStreetViewInitialized && locationToLoad));
   const showApiKeyMissingOverlay = !apiKey;
