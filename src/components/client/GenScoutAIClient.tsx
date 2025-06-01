@@ -40,10 +40,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
+import { generateLocationInfo, type GenerateLocationInfoInput } from '@/ai/flows/generate-location-info-flow';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -81,6 +82,8 @@ export default function GenScoutAIClient() {
   const [isClient, setIsClient] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string>("custom-search");
   const [filmingLocationSearchTerm, setFilmingLocationSearchTerm] = useState<string>("");
+  const [locationInfo, setLocationInfo] = useState<string | null>(null);
+  const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
 
 
   // Refs
@@ -111,6 +114,26 @@ export default function GenScoutAIClient() {
     );
   });
 
+  // Helper to fetch location info
+  const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
+    setIsLoadingLocationInfo(true);
+    setLocationInfo(null);
+    try {
+      const input: GenerateLocationInfoInput = { locationName: name };
+      if (coords) {
+        input.coordinates = coords;
+      }
+      const result = await generateLocationInfo(input);
+      setLocationInfo(result.summary);
+    } catch (error) {
+      console.error("Error fetching location information:", error);
+      setLocationInfo("Could not load information for this location.");
+      toast({ title: "AI Error", description: "Failed to generate location summary.", variant: "destructive" });
+    } finally {
+      setIsLoadingLocationInfo(false);
+    }
+  }, [toast]);
+
 
   // Callbacks
   const handleLocationSearch = useCallback((query?: string) => {
@@ -129,12 +152,14 @@ export default function GenScoutAIClient() {
     geocoder.geocode({ address: effectiveQuery }, (results, status) => {
         if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
             const newLocation = results[0].geometry.location.toJSON();
-            setLocationForStreetView(results[0].formatted_address || effectiveQuery); 
+            const formattedAddress = results[0].formatted_address || effectiveQuery;
+            setLocationForStreetView(formattedAddress); 
             setCurrentMapCenter(newLocation);
             setMarkerPosition(newLocation);
             setCurrentMapZoom(15); 
             setViewMode('map'); 
-            if (query) setSearchInput(results[0].formatted_address || effectiveQuery); 
+            if (query) setSearchInput(formattedAddress); 
+            fetchLocationInformation(formattedAddress, newLocation);
         } else {
             let userMessage = `Geocoding failed: ${status}`;
              if (status === window.google.maps.GeocoderStatus.ZERO_RESULTS) {
@@ -148,9 +173,10 @@ export default function GenScoutAIClient() {
             }
             toast({ title: "Geocoding Error", description: userMessage, variant: "destructive" });
             setMarkerPosition(null); 
+            setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, toast, setViewMode, setSearchInput, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setLocationForStreetView]);
+  }, [searchInput, googleMapsApiLoaded, toast, setViewMode, setSearchInput, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setLocationForStreetView, fetchLocationInformation]);
 
   const handleAutocompletePlaceSelected = useCallback((placeName: string, placeGeometry?: google.maps.LatLng | null) => {
     setSearchInput(placeName);
@@ -161,10 +187,11 @@ export default function GenScoutAIClient() {
       setMarkerPosition(newLocation);
       setCurrentMapZoom(15); 
       setViewMode('map');
+      fetchLocationInformation(placeName, newLocation);
     } else {
-      handleLocationSearch(placeName); // Fallback to geocoding
+      handleLocationSearch(placeName); // Fallback to geocoding (which will also call fetchLocationInformation)
     }
-  }, [handleLocationSearch, setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode]);
+  }, [handleLocationSearch, setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode, fetchLocationInformation]);
   
   const handleStreetViewStatusChange = useCallback((status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => {
     if (status === 'OK') {
@@ -218,21 +245,25 @@ export default function GenScoutAIClient() {
     setCurrentMapCenter(latLng);
     setMarkerPosition(latLng);
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-      setLocationForStreetView(`coords:${latLng.lat},${latLng.lng}`);
+      const coordString = `coords:${latLng.lat},${latLng.lng}`;
+      setLocationForStreetView(coordString);
+      fetchLocationInformation(coordString, latLng);
       setViewMode('streetview');
       return;
     }
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
+      let addressForStreetView = `coords:${latLng.lat},${latLng.lng}`;
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
-        setLocationForStreetView(results[0].formatted_address || `coords:${latLng.lat},${latLng.lng}`);
+        addressForStreetView = results[0].formatted_address || addressForStreetView;
       } else {
-        setLocationForStreetView(`coords:${latLng.lat},${latLng.lng}`);
         console.warn("Reverse geocoding failed for map click, using raw coords:", status);
       }
+      setLocationForStreetView(addressForStreetView);
+      fetchLocationInformation(addressForStreetView, latLng);
       setViewMode('streetview');
     });
-  }, [setCurrentMapCenter, setMarkerPosition, setLocationForStreetView, setViewMode, googleMapsApiLoaded]);
+  }, [setCurrentMapCenter, setMarkerPosition, setLocationForStreetView, setViewMode, googleMapsApiLoaded, fetchLocationInformation]);
 
   const handleDownloadImage = useCallback(() => {
     if (generatedCinematicImage) {
@@ -281,9 +312,10 @@ export default function GenScoutAIClient() {
     setMarkerPosition(location.coordinates);
     setCurrentMapZoom(15);
     setViewMode('map');
+    fetchLocationInformation(location.locationName, location.coordinates);
     // setActiveSidebarTab("custom-search"); // Optionally switch back to custom search tab
     toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
-  }, [setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode, toast]);
+  }, [setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode, toast, fetchLocationInformation]);
 
   // Effects
   useEffect(() => {
@@ -526,11 +558,11 @@ export default function GenScoutAIClient() {
           <ScrollArea className="h-full">
             <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="w-full p-0">
               <TabsList className="grid w-full grid-cols-2 mb-2 sticky top-0 bg-sidebar z-10 p-2">
-                <TabsTrigger value="custom-search" className="text-xs px-2 py-1.5">
-                  <Search className="w-3.5 h-3.5 mr-1.5" />Custom Search
+                <TabsTrigger value="custom-search" className="text-[11px] px-1.5 py-1.5">
+                  <Search className="w-3 h-3 mr-1.5" />Custom Search
                 </TabsTrigger>
-                <TabsTrigger value="famous-locations" className="text-xs px-2 py-1.5">
-                  <Film className="w-3.5 h-3.5 mr-1.5" />Famous Locations
+                <TabsTrigger value="famous-locations" className="text-[11px] px-1.5 py-1.5">
+                  <Film className="w-3 h-3 mr-1.5" />Famous Locations
                 </TabsTrigger>
               </TabsList>
 
@@ -572,6 +604,32 @@ export default function GenScoutAIClient() {
                     {locationForStreetView && !locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Current Target: {locationForStreetView}</p>}
                     {locationForStreetView && locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Target: Custom Coordinates</p>}
                     {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
+
+                    {isLoadingLocationInfo && (
+                      <Card className="mt-4">
+                        <CardHeader className="flex flex-row items-center gap-2 p-3">
+                           <InfoIcon className="w-4 h-4 text-primary" />
+                           <CardTitle className="text-sm">Fetching Location Info...</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <Skeleton className="h-4 w-3/4 mb-2" />
+                          <Skeleton className="h-4 w-full mb-2" />
+                          <Skeleton className="h-4 w-1/2" />
+                        </CardContent>
+                      </Card>
+                    )}
+                    {locationInfo && !isLoadingLocationInfo && (
+                      <Card className="mt-4 bg-secondary/30">
+                         <CardHeader className="flex flex-row items-center gap-2 p-3">
+                           <InfoIcon className="w-4 h-4 text-primary" />
+                           <CardTitle className="text-sm">About {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          <p className="text-xs text-foreground">{locationInfo}</p>
+                        </CardContent>
+                      </Card>
+                    )}
+
                   </SidebarGroupContent>
                 </SidebarGroup>
               </TabsContent>
