@@ -21,6 +21,7 @@ const GenerateCinematicShotInputSchema = z.object({
   timeOfDayToken: z.string().describe('A descriptive token for the time of day (e.g., "golden hour", "night").'),
   weatherConditionPrompt: z.string().describe('A short prompt describing the weather (e.g., "light rain", "foggy morning").'),
   sceneDescription: z.string().optional().describe('Optional brief description of the location or scene context.'),
+  shotDirection: z.string().optional().describe('Optional specific instructions for camera angle, view, or key elements to focus on.'),
 });
 export type GenerateCinematicShotInput = z.infer<typeof GenerateCinematicShotInputSchema>;
 
@@ -39,11 +40,12 @@ export async function generateCinematicShot(input: GenerateCinematicShotInput): 
   return generateCinematicShotFlow(input);
 }
 
+// This prompt definition is kept for potential future use with text-based models or structured output generation,
+// but the current image generation uses a direct ai.generate call with a crafted prompt array.
 const prompt = ai.definePrompt({
   name: 'generateCinematicShotPrompt',
   input: {schema: GenerateCinematicShotInputSchema},
-  output: {schema: GenerateCinematicShotOutputSchema}, // The model will generate an image, not structured JSON for this output.
-                                                        // We expect the image to be in the `media` part of the response.
+  output: {schema: GenerateCinematicShotOutputSchema}, 
   prompt: `You are an expert virtual Director of Photography. Your task is to transform a raw street-level image into a high-quality, cinematic still shot.
 
 Consider the following parameters for your render:
@@ -51,6 +53,7 @@ Consider the following parameters for your render:
 - Time of Day: The ambiance should reflect '{{{timeOfDayToken}}}'.
 - Weather: The scene should incorporate '{{{weatherConditionPrompt}}}'.
 - Scene Context: {{#if sceneDescription}}The location is '{{{sceneDescription}}}'. {{else}}The location is a general urban/street scene.{{/if}}
+{{#if shotDirection}}- Shot Direction/Details: {{{shotDirection}}}{{/if}}
 
 IMPORTANT INSTRUCTIONS:
 1.  **Remove UI Overlays**: Eliminate any text, navigation arrows, watermarks, or other UI elements present in the original street view image.
@@ -68,15 +71,20 @@ const generateCinematicShotFlow = ai.defineFlow(
   {
     name: 'generateCinematicShotFlow',
     inputSchema: GenerateCinematicShotInputSchema,
-    outputSchema: GenerateCinematicShotOutputSchema, // Flow output will be structured
+    outputSchema: GenerateCinematicShotOutputSchema, 
   },
   async (input: GenerateCinematicShotInput) => {
-    // For image generation, we use ai.generate directly with specific model and config.
-    // The prompt defined above is primarily for text-based models if we were to use it for that.
-    // Here, we re-craft a prompt array suitable for Gemini 2.0 Flash image generation.
+    let textPrompt = `Re-render the following street scene as a cinematic still, as if shot with a ${input.focalLength} lens. The time of day is '${input.timeOfDayToken}' and the weather is '${input.weatherConditionPrompt}'.`;
+    if (input.sceneDescription) {
+      textPrompt += ` The location is '${input.sceneDescription}'.`;
+    }
+    if (input.shotDirection) {
+      textPrompt += ` Specific shot instruction: '${input.shotDirection}'.`;
+    }
+    textPrompt += ` Remove all UI elements, text, and navigation arrows from the original image. Focus on cinematic quality, lighting, and composition.`;
     
     const imageGenPrompt = [
-        {text: `Re-render the following street scene as a cinematic still, as if shot with a ${input.focalLength} lens. The time of day is '${input.timeOfDayToken}' and the weather is '${input.weatherConditionPrompt}'. ${input.sceneDescription ? `The location is '${input.sceneDescription}'.` : ''} Remove all UI elements, text, and navigation arrows from the original image. Focus on cinematic quality, lighting, and composition.`},
+        {text: textPrompt},
         {media: {url: input.streetViewImageDataUri}},
     ];
 
@@ -85,15 +93,14 @@ const generateCinematicShotFlow = ai.defineFlow(
         model: 'googleai/gemini-2.0-flash-exp', 
         prompt: imageGenPrompt,
         config: {
-          responseModalities: ['IMAGE', 'TEXT'], // Important: Must request IMAGE modality
-           safetySettings: [ // Example safety settings, adjust as needed
+          responseModalities: ['IMAGE', 'TEXT'], 
+           safetySettings: [ 
             { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
           ],
         },
-        // output: { schema: GenerateCinematicShotOutputSchema } // Not strictly needed here as we manually construct the output
       });
 
       if (media && media.url) {

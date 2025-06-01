@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Globe, Layers, MapPin, Orbit, ChevronDownSquare, Shuffle, Camera, FileJson, Sun, CloudRain, CloudFog, Snowflake, Bot, Search, Video, Focus, ImageIcon } from 'lucide-react';
+import { Globe, Layers, MapPin, Orbit, ChevronDownSquare, Shuffle, Camera, FileJson, Sun, CloudRain, CloudFog, Snowflake, Bot, Search, Video, Focus, ImageIcon, Film } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -107,6 +107,8 @@ export default function GenScoutAIClient() {
   const [generatedWeatherPrompt, setGeneratedWeatherPrompt] = useState<string>('');
   const [isLoadingWeatherPrompt, setIsLoadingWeatherPrompt] = useState<boolean>(false);
 
+  const [shotDirection, setShotDirection] = useState<string>('');
+
   const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
 
@@ -186,6 +188,7 @@ export default function GenScoutAIClient() {
         timeOfDayToken: generatedTimePrompt || 'noon',
         weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
         sceneDescription: locationQuery,
+        shotDirection: shotDirection || undefined,
       };
       const result = await generateCinematicShot(input);
       if (result.generatedImageDataUri) {
@@ -310,6 +313,21 @@ export default function GenScoutAIClient() {
                         <span className="font-semibold">AI Weather Prompt:</span> {generatedWeatherPrompt}
                       </div>
                     )}
+                  </div>
+
+                   <div>
+                    <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                      <Film className="w-4 h-4" /> Shot Direction / Details
+                    </Label>
+                    <Input 
+                      id="shot-direction"
+                      type="text" 
+                      placeholder="e.g., Low angle, looking up" 
+                      value={shotDirection}
+                      onChange={(e) => {setShotDirection(e.target.value); setGeneratedCinematicImage(null);}}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Describe desired camera angle, view, or specific elements.</p>
                   </div>
                   
                   <Button 
