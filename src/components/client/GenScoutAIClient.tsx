@@ -229,9 +229,10 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (status === 'ERROR' && message) { // Only toast on actual errors, not ZERO_RESULTS
+      if (status === 'ERROR' && message) { 
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
+      // For ZERO_RESULTS, no toast is shown, UI below shot config panel will indicate unavailability
     }
   }, [toast]);
 
@@ -837,6 +838,7 @@ export default function GenScoutAIClient() {
                       size="sm" 
                       onClick={() => setCurrentDisplayMode('map')}
                       disabled={!googleMapsApiLoaded}
+                      className="min-w-[100px]"
                     >
                       <MapIcon className="mr-2 h-4 w-4" /> Map
                     </Button>
@@ -845,14 +847,19 @@ export default function GenScoutAIClient() {
                       size="sm" 
                       onClick={() => setCurrentDisplayMode('streetview')}
                       disabled={!googleMapsApiLoaded || !locationForStreetView}
+                      className="min-w-[130px]"
                     >
                       <EyeIcon className="mr-2 h-4 w-4" /> Street View
                     </Button>
                      <Button 
                       variant={currentDisplayMode === 'planner' ? 'default' : 'outline'} 
                       size="sm" 
-                      onClick={() => setCurrentDisplayMode('planner')}
+                      onClick={() => {
+                        setCurrentDisplayMode('planner');
+                        setCurrentMapZoom(16); 
+                      }}
                       disabled={!googleMapsApiLoaded || !locationForStreetView}
+                      className="min-w-[140px]"
                     >
                       <LayoutDashboard className="mr-2 h-4 w-4" /> Scene Planner
                   </Button>
@@ -881,8 +888,8 @@ export default function GenScoutAIClient() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    Use this mode to plan your shots. Annotation tools are planned for a future update.
-                    For now, use screen capture to save your layouts.
+                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update.
+                    For now, please use screen capture to save your layouts and annotate with external image editing software.
                   </p>
                  </CardContent>
               )}
@@ -1178,3 +1185,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
