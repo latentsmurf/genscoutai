@@ -56,9 +56,10 @@ Consider the following parameters for your render:
 {{#if shotDirection}}- Shot Direction/Details: {{{shotDirection}}}{{/if}}
 
 IMPORTANT INSTRUCTIONS:
-1.  **Remove UI Overlays**: Eliminate any text, navigation arrows, watermarks, or other UI elements present in the original street view image.
-2.  **Cinematic Quality**: Focus on composition, lighting, and color grading to produce a visually appealing, film-like image. Avoid an overly "digital" or "game-like" look.
-3.  **Maintain Scene Integrity**: While stylizing, the core elements and layout of the original scene should remain recognizable. Do not invent entirely new structures or radically alter the environment unless it enhances the cinematic feel in a plausible way.
+1.  **Base Image**: Use the provided street view image as the structural foundation.
+2.  **Remove ALL UI Overlays**: Ensure the final image is purely the scene. All UI elements, text, navigation arrows, watermarks, or any other non-diegetic graphical elements present in the original street view image must be completely removed.
+3.  **Cinematic Quality**: Focus on composition, lighting, and color grading to produce a visually appealing, film-like image. Avoid an overly "digital" or "game-like" look.
+4.  **Maintain Scene Integrity**: While stylizing, the core elements and layout of the original scene should remain recognizable. Do not invent entirely new structures or radically alter the environment unless it enhances the cinematic feel in a plausible way.
 
 Original street view image:
 {{media url=streetViewImageDataUri}}
@@ -74,14 +75,14 @@ const generateCinematicShotFlow = ai.defineFlow(
     outputSchema: GenerateCinematicShotOutputSchema, 
   },
   async (input: GenerateCinematicShotInput) => {
-    let textPrompt = `Re-render the following street scene as a cinematic still, as if shot with a ${input.focalLength} lens. The time of day is '${input.timeOfDayToken}' and the weather is '${input.weatherConditionPrompt}'.`;
+    let textPrompt = `Using the provided street view image as a base, re-render it as a cinematic still. Apply a ${input.focalLength} lens effect. The time of day is '${input.timeOfDayToken}' and the weather is '${input.weatherConditionPrompt}'.`;
     if (input.sceneDescription) {
-      textPrompt += ` The location is '${input.sceneDescription}'.`;
+      textPrompt += ` The location context is: '${input.sceneDescription}'.`;
     }
     if (input.shotDirection) {
       textPrompt += ` Specific shot instruction: '${input.shotDirection}'.`;
     }
-    textPrompt += ` Remove all UI elements, text, and navigation arrows from the original image. Focus on cinematic quality, lighting, and composition.`;
+    textPrompt += ` IMPORTANT: Ensure the final image is purely the scene. All UI elements, text, navigation arrows, watermarks, and any other non-diegetic graphical elements present in the original street view image must be completely removed. Focus on cinematic quality, realistic lighting, and compelling composition.`;
     
     const imageGenPrompt = [
         {text: textPrompt},
@@ -115,3 +116,4 @@ const generateCinematicShotFlow = ai.defineFlow(
     }
   }
 );
+
