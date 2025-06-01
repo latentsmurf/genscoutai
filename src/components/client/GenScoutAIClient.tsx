@@ -357,29 +357,17 @@ export default function GenScoutAIClient() {
     setGeneratedCinematicImage(null);
 
     const panorama = streetViewPanoramaRef.current;
-    const panoData = panorama.getPanorama(); // This is StreetViewPanoramaData
     const pov = panorama.getPov();
     const zoom = panorama.getZoom();
+    const panoId = panorama.getPano(); // Correct method to get Pano ID
 
-    if (panoData && panoData.location && panoData.location.pano) {
-        await processSnapshot(panoData.location.pano, pov, zoom, googleMapsApiKey);
+    if (panoId) {
+        await processSnapshot(panoId, pov, zoom, googleMapsApiKey);
     } else {
-        // Fallback: try to get pano using current location if direct data is insufficient
-        const currentLocation = panorama.getPosition();
-        if (currentLocation) {
-            const streetViewService = new google.maps.StreetViewService();
-            streetViewService.getPanorama({ location: currentLocation, radius: 50 }, async (data, status) => {
-                if (status === google.maps.StreetViewStatus.OK && data && data.location && data.location.pano) {
-                    await processSnapshot(data.location.pano, pov, zoom, googleMapsApiKey);
-                } else {
-                    toast({ title: "Snapshot Error", description: "Could not retrieve Street View details for the current view.", variant: "destructive" });
-                    setIsGeneratingCinematicImage(false);
-                }
-            });
-        } else {
-            toast({ title: "Snapshot Error", description: "Current Street View location is invalid for snapshot.", variant: "destructive" });
-            setIsGeneratingCinematicImage(false);
-        }
+        // This case should ideally not be reached if isStreetViewReady is true and panorama object exists.
+        console.warn("Pano ID is null or undefined even though Street View is thought to be ready.");
+        toast({ title: "Snapshot Error", description: "Could not retrieve Street View Pano ID. Please try re-searching the location.", variant: "destructive" });
+        setIsGeneratingCinematicImage(false);
     }
   };
   
