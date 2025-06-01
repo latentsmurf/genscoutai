@@ -201,8 +201,8 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (message) {
-        toast({ title: "Street View Info", description: message, variant: status === 'ERROR' || status === 'ZERO_RESULTS' ? "destructive" : "default" });
+      if (status === 'ERROR' && message) { // Only show toast for actual errors, not ZERO_RESULTS
+        toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
   }, [toast]);
@@ -248,16 +248,16 @@ export default function GenScoutAIClient() {
     setCurrentMapCenter(latLng);
     setMarkerPosition(latLng);
     const coordString = `coords:${latLng.lat},${latLng.lng}`;
-    setLocationForStreetView(coordString);
+    setLocationForStreetView(coordString); // Use precise coords for Street View
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-      fetchLocationInformation(coordString, latLng);
+      fetchLocationInformation(coordString, latLng); // Fetch info with coords if geocoder not ready
       return;
     }
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
-      let locationNameForInfo = coordString;
+      let locationNameForInfo = coordString; // Fallback to coord string for info
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
         locationNameForInfo = results[0].formatted_address || coordString;
       } else {
@@ -675,6 +675,10 @@ export default function GenScoutAIClient() {
                           <Skeleton className="h-4 w-1/3 mb-1.5" />
                           <Skeleton className="h-3.5 w-full" />
                         </div>
+                         <div>
+                          <Skeleton className="h-4 w-1/3 mb-1.5" />
+                          <Skeleton className="h-3.5 w-full" />
+                        </div>
                       </CardContent>
                     </Card>
                   )}
@@ -796,7 +800,7 @@ export default function GenScoutAIClient() {
                       onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
                       disabled={
                         !googleMapsApiLoaded ||
-                        (viewMode === 'map' && !locationForStreetView) || // Can always switch back to map if API loaded
+                        (viewMode === 'map' && !locationForStreetView) || 
                         (viewMode === 'streetview' && !googleMapsApiLoaded) 
                       }
                       className="ml-auto min-w-[130px]"
