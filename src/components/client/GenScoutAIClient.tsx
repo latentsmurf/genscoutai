@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -25,20 +25,68 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Globe, Layers, MapPin, Orbit, ChevronDownSquare, Shuffle, Camera, FileJson, Sun, CloudRain, CloudFog, Snowflake, CalendarIcon, Bot } from 'lucide-react';
-import { format } from 'date-fns';
+import { Globe, Layers, MapPin, Orbit, ChevronDownSquare, Shuffle, Camera, FileJson, Sun, CloudRain, CloudFog, Snowflake, Bot, Search, Video, Focus, ImageIcon } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
+import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
+import { Skeleton } from '@/components/ui/skeleton';
 
-const GlobePlaceholder: React.FC = () => {
+const StreetViewDisplay: React.FC<{ locationQuery: string; generatedImage?: string | null; overlays?: { lens: string; time: string; weather: string} }> = ({ locationQuery, generatedImage, overlays }) => {
+  const [streetViewSrc, setStreetViewSrc] = useState("https://placehold.co/800x600.png?text=Enter+Location");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (locationQuery) {
+      setIsLoading(true);
+      // Simulate API call for street view image
+      setTimeout(() => {
+        // For demonstration, we'll just use a placeholder that reflects the query
+        // In a real app, this would fetch an actual street view image
+        setStreetViewSrc(`https://placehold.co/800x600.png?text=${encodeURIComponent(locationQuery)}`);
+        setIsLoading(false);
+      }, 1500);
+    } else {
+      setStreetViewSrc("https://placehold.co/800x600.png?text=Street+View");
+    }
+  }, [locationQuery]);
+
+  const displaySrc = generatedImage || streetViewSrc;
+  const displayAlt = generatedImage ? "AI Cinematic Shot" : (locationQuery || "Street View Placeholder");
+  const dataAiHint = generatedImage ? "cinematic outdoor" : (locationQuery ? `street view ${locationQuery.substring(0,20)}` : "street view");
+
   return (
-    <div className="w-full h-full flex items-center justify-center bg-muted rounded-lg shadow-inner">
-      <Image src="https://placehold.co/800x600.png?text=3D+Globe+View" alt="3D Globe Placeholder" width={800} height={600} data-ai-hint="globe map" className="object-cover rounded-lg" />
+    <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
+      {isLoading && !generatedImage && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
+          <ImageIcon className="w-16 h-16 text-primary animate-pulse" />
+          <p className="ml-2 text-foreground">Loading Street View...</p>
+        </div>
+      )}
+      <Image 
+        key={displaySrc} // Force re-render on src change for loading states
+        src={displaySrc} 
+        alt={displayAlt} 
+        width={800} 
+        height={600} 
+        data-ai-hint={dataAiHint} 
+        className="object-contain rounded-lg w-full h-auto max-h-[calc(100vh-12rem)]" 
+        priority={!!generatedImage}
+      />
+      {generatedImage && overlays && (
+        <>
+          <div className="absolute bottom-4 left-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm">
+            <p>GenScoutAI</p>
+            <p>Lens: {overlays.lens}</p>
+          </div>
+          <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm text-right">
+            <p>Time: {overlays.time}</p>
+            <p>Weather: {overlays.weather}</p>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -47,37 +95,42 @@ const GlobePlaceholder: React.FC = () => {
 export default function GenScoutAIClient() {
   const { toast } = useToast();
 
-  const [streetViewEnabled, setStreetViewEnabled] = useState(false);
-  const [ndviLayerEnabled, setNdviLayerEnabled] = useState(false);
-  const [landCoverLayerEnabled, setLandCoverLayerEnabled] = useState(false);
-  const [imageryDate, setImageryDate] = useState<Date | undefined>(new Date());
-  const [flyoverPreset, setFlyoverPreset] = useState<string>('');
+  const [locationQuery, setLocationQuery] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [selectedLens, setSelectedLens] = useState<string>('50mm');
   
   const [timeOfDay, setTimeOfDay] = useState<number>(12);
-  const [generatedTimePrompt, setGeneratedTimePrompt] = useState<string>('');
+  const [generatedTimePrompt, setGeneratedTimePrompt] = useState<string>('noon');
   const [isLoadingTimePrompt, setIsLoadingTimePrompt] = useState<boolean>(false);
 
   const [weatherCondition, setWeatherCondition] = useState<string>('');
   const [generatedWeatherPrompt, setGeneratedWeatherPrompt] = useState<string>('');
   const [isLoadingWeatherPrompt, setIsLoadingWeatherPrompt] = useState<boolean>(false);
 
+  const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
+  const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
+
+  const cameraLenses = ["16mm", "24mm", "35mm", "50mm", "85mm", "135mm"];
+
   const handleTimeOfDayChange = useCallback(async (value: number) => {
     setTimeOfDay(value);
     setIsLoadingTimePrompt(true);
+    setGeneratedCinematicImage(null); // Clear generated image when params change
     try {
       const input: GenerateTimeOfDayPromptInput = { time: value };
       const result = await generateTimeOfDayPrompt(input);
       setGeneratedTimePrompt(result.promptToken);
     } catch (error) {
       console.error("Error generating time of day prompt:", error);
-      setGeneratedTimePrompt('Error generating prompt.');
-      toast({ title: "AI Error", description: "Failed to generate time-of-day prompt.", variant: "destructive" });
+      setGeneratedTimePrompt('Error');
+      toast({ title: "AI Error", description: "Failed to generate time-of-day token.", variant: "destructive" });
     } finally {
       setIsLoadingTimePrompt(false);
     }
   }, [toast]);
 
   const handleWeatherConditionChange = useCallback(async (value: string) => {
+    setGeneratedCinematicImage(null); // Clear generated image when params change
     if (!value || value === "none") {
       setWeatherCondition('');
       setGeneratedWeatherPrompt('');
@@ -89,9 +142,10 @@ export default function GenScoutAIClient() {
       const input: GenerateWeatherConditionInput = { weatherCondition: value };
       const result = await generateWeatherConditionPrompt(input);
       setGeneratedWeatherPrompt(result.prompt);
-    } catch (error) {
+    } catch (error)
+     {
       console.error("Error generating weather condition prompt:", error);
-      setGeneratedWeatherPrompt('Error generating prompt.');
+      setGeneratedWeatherPrompt('Error');
       toast({ title: "AI Error", description: "Failed to generate weather prompt.", variant: "destructive" });
     } finally {
       setIsLoadingWeatherPrompt(false);
@@ -101,14 +155,52 @@ export default function GenScoutAIClient() {
   useEffect(() => {
     handleTimeOfDayChange(timeOfDay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount for initial time
+  }, []);
 
-  const handleSnapshot = () => {
-    toast({ title: "Snapshot", description: "Canvas captured (simulated)." });
+  const handleLocationSearch = () => {
+    if (!searchInput.trim()) {
+      toast({ title: "Search Empty", description: "Please enter a location to search.", variant: "default" });
+      return;
+    }
+    setLocationQuery(searchInput);
+    setGeneratedCinematicImage(null); // Clear previous image on new search
+    toast({ title: "Location Search", description: `Searching for: ${searchInput} (simulated).`, variant: "default" });
   };
+  
+  const handleSnapshot = async () => {
+    if (!locationQuery) {
+      toast({ title: "No Location", description: "Please search for a location first.", variant: "default"});
+      return;
+    }
+    setIsGeneratingCinematicImage(true);
+    setGeneratedCinematicImage(null); // Clear previous
 
-  const handleExportPaths = () => {
-    toast({ title: "Export Paths", description: "Paths exported as JSON (simulated)." });
+    // Simulate capturing street view image data
+    // In a real app, you'd get this from the Street View component/API
+    const streetViewImageDataUri = `https://placehold.co/800x600.png?text=${encodeURIComponent(locationQuery)}`;
+    
+    try {
+      const input: GenerateCinematicShotInput = {
+        streetViewImageDataUri,
+        focalLength: selectedLens,
+        timeOfDayToken: generatedTimePrompt || 'noon',
+        weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
+        sceneDescription: locationQuery,
+      };
+      const result = await generateCinematicShot(input);
+      if (result.generatedImageDataUri) {
+        setGeneratedCinematicImage(result.generatedImageDataUri);
+        toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
+      } else {
+        throw new Error("AI did not return an image.");
+      }
+    } catch (error) {
+      console.error("Error generating cinematic shot:", error);
+      setGeneratedCinematicImage(null);
+      toast({ title: "AI Generation Failed", description: `Could not generate cinematic shot. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+    } finally {
+      setIsGeneratingCinematicImage(false);
+    }
   };
   
   const [isClient, setIsClient] = useState(false);
@@ -116,9 +208,12 @@ export default function GenScoutAIClient() {
     setIsClient(true);
   }, []);
 
-
   if (!isClient) {
-    return null; // Or a loading spinner
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <ImageIcon className="w-16 h-16 text-primary animate-pulse" />
+      </div>
+    );
   }
 
   return (
@@ -126,7 +221,7 @@ export default function GenScoutAIClient() {
       <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
         <SidebarHeader className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2">
-            <Globe className="w-8 h-8 text-primary" />
+            <Camera className="w-8 h-8 text-primary" />
             <h1 className="text-xl font-semibold text-sidebar-foreground">GenScoutAI</h1>
           </div>
         </SidebarHeader>
@@ -134,87 +229,44 @@ export default function GenScoutAIClient() {
           <ScrollArea className="h-full">
             <div className="p-4 space-y-6">
               <SidebarGroup>
-                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">View Options</SidebarGroupLabel>
-                <SidebarGroupContent className="space-y-3 mt-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="street-view" className="flex items-center gap-2 text-sm">
-                      <MapPin className="w-4 h-4" /> Street View
-                    </Label>
-                    <Switch id="street-view" checked={streetViewEnabled} onCheckedChange={setStreetViewEnabled} />
+                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Location</SidebarGroupLabel>
+                <SidebarGroupContent className="space-y-2 mt-2">
+                  <div className="flex space-x-2">
+                    <Input 
+                      type="text" 
+                      placeholder="e.g., Eiffel Tower, Paris" 
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleLocationSearch()}
+                      className="text-sm"
+                    />
+                    <Button onClick={handleLocationSearch} size="sm" aria-label="Search location">
+                      <Search className="w-4 h-4" />
+                    </Button>
                   </div>
+                  {locationQuery && <p className="text-xs text-muted-foreground">Displaying: {locationQuery}</p>}
                 </SidebarGroupContent>
               </SidebarGroup>
 
               <SidebarGroup>
-                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Earth Engine Layers</SidebarGroupLabel>
-                <SidebarGroupContent className="space-y-3 mt-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="ndvi-layer" className="flex items-center gap-2 text-sm">
-                      <Layers className="w-4 h-4" /> NDVI
-                    </Label>
-                    <Switch id="ndvi-layer" checked={ndviLayerEnabled} onCheckedChange={setNdviLayerEnabled} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="land-cover-layer" className="flex items-center gap-2 text-sm">
-                      <Layers className="w-4 h-4" /> Land Cover
-                    </Label>
-                    <Switch id="land-cover-layer" checked={landCoverLayerEnabled} onCheckedChange={setLandCoverLayerEnabled} />
-                  </div>
+                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Cinematic Controls</SidebarGroupLabel>
+                <SidebarGroupContent className="space-y-4 mt-2">
                   <div>
-                    <Label htmlFor="imagery-date" className="text-sm mb-1 block">Imagery Date</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className="w-full justify-start text-left font-normal text-sm"
-                          id="imagery-date"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {imageryDate ? format(imageryDate, "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={imageryDate}
-                          onSelect={setImageryDate}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </SidebarGroupContent>
-              </SidebarGroup>
-
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Flyover Mode</SidebarGroupLabel>
-                <SidebarGroupContent className="space-y-3 mt-2">
-                  <p className="text-sm text-muted-foreground italic">Key-frame timeline UI (placeholder)</p>
-                  <div>
-                    <Label htmlFor="flyover-preset" className="text-sm mb-1 block">Presets</Label>
-                    <Select value={flyoverPreset} onValueChange={setFlyoverPreset}>
-                      <SelectTrigger id="flyover-preset" className="w-full text-sm">
-                        <SelectValue placeholder="Select preset" />
+                    <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                      <Focus className="w-4 h-4" /> Camera Lens
+                    </Label>
+                    <Select value={selectedLens} onValueChange={(value) => { setSelectedLens(value); setGeneratedCinematicImage(null); }}>
+                      <SelectTrigger id="camera-lens" className="w-full text-sm">
+                        <SelectValue placeholder="Select lens" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="orbit"><div className="flex items-center gap-2"><Orbit className="w-4 h-4" />Orbit</div></SelectItem>
-                        <SelectItem value="crane"><div className="flex items-center gap-2"><ChevronDownSquare className="w-4 h-4" />Crane</div></SelectItem>
-                        <SelectItem value="sweep"><div className="flex items-center gap-2"><Shuffle className="w-4 h-4" />Sweep</div></SelectItem>
+                        {cameraLenses.map(lens => (
+                          <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full text-sm" onClick={handleExportPaths}>
-                    <FileJson className="w-4 h-4 mr-2" /> Export Paths (JSON)
-                  </Button>
-                </SidebarGroupContent>
-              </SidebarGroup>
 
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Visual Tools</SidebarGroupLabel>
-                <SidebarGroupContent className="space-y-4 mt-2">
-                  <Button variant="outline" size="sm" className="w-full text-sm" onClick={handleSnapshot}>
-                    <Camera className="w-4 h-4 mr-2" /> Snapshot Tool
-                  </Button>
                   <div>
                     <Label htmlFor="time-of-day" className="flex items-center gap-2 text-sm mb-1">
                       <Sun className="w-4 h-4" /> Time of Day ({timeOfDay}:00)
@@ -228,13 +280,14 @@ export default function GenScoutAIClient() {
                       onValueChange={(value) => handleTimeOfDayChange(value[0])}
                       className="my-2"
                     />
-                    {isLoadingTimePrompt && <p className="text-xs text-muted-foreground italic">Generating AI prompt...</p>}
+                    {isLoadingTimePrompt && <p className="text-xs text-muted-foreground italic">Updating AI token...</p>}
                     {generatedTimePrompt && !isLoadingTimePrompt && (
                       <div className="mt-1 p-2 bg-muted/50 rounded-md text-xs">
-                        <span className="font-semibold">AI Token:</span> {generatedTimePrompt}
+                        <span className="font-semibold">AI Time Token:</span> {generatedTimePrompt}
                       </div>
                     )}
                   </div>
+
                   <div>
                     <Label htmlFor="weather-condition" className="flex items-center gap-2 text-sm mb-1">
                        <Bot className="w-4 h-4" /> Weather Condition
@@ -245,18 +298,38 @@ export default function GenScoutAIClient() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                        <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
                         <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
                         <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
                         <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
                       </SelectContent>
                     </Select>
-                    {isLoadingWeatherPrompt && <p className="text-xs text-muted-foreground italic mt-1">Generating AI prompt...</p>}
+                    {isLoadingWeatherPrompt && <p className="text-xs text-muted-foreground italic mt-1">Updating AI prompt...</p>}
                     {generatedWeatherPrompt && !isLoadingWeatherPrompt && (
                        <div className="mt-1 p-2 bg-muted/50 rounded-md text-xs">
-                        <span className="font-semibold">AI Prompt:</span> {generatedWeatherPrompt}
+                        <span className="font-semibold">AI Weather Prompt:</span> {generatedWeatherPrompt}
                       </div>
                     )}
                   </div>
+                  
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    className="w-full text-sm" 
+                    onClick={handleSnapshot}
+                    disabled={isGeneratingCinematicImage || !locationQuery}
+                  >
+                    {isGeneratingCinematicImage ? (
+                      <>
+                        <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 mr-2" /> Take Cinematic Snapshot
+                      </>
+                    )}
+                  </Button>
+
                 </SidebarGroupContent>
               </SidebarGroup>
             </div>
@@ -264,18 +337,31 @@ export default function GenScoutAIClient() {
         </SidebarContent>
         <SidebarFooter className="p-4 border-t border-sidebar-border">
           <SidebarTrigger className="ml-auto md:hidden">
-            <Globe className="w-6 h-6" />
+            <Camera className="w-6 h-6" />
           </SidebarTrigger>
           <p className="text-xs text-sidebar-foreground/70 hidden md:block text-center">
             GenScoutAI &copy; {new Date().getFullYear()}
           </p>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="p-4">
-        <GlobePlaceholder />
+      <SidebarInset className="p-2 md:p-4 flex flex-col items-center justify-center">
+        {isGeneratingCinematicImage && !generatedCinematicImage && (
+          <div className="w-full h-full flex items-center justify-center bg-muted rounded-lg shadow-inner">
+            <Skeleton className="w-[800px] h-[600px] max-w-full max-h-full rounded-lg" />
+          </div>
+        )}
+        {(!isGeneratingCinematicImage || generatedCinematicImage) && (
+          <StreetViewDisplay 
+            locationQuery={locationQuery} 
+            generatedImage={generatedCinematicImage}
+            overlays={generatedCinematicImage ? {
+              lens: selectedLens,
+              time: generatedTimePrompt,
+              weather: weatherCondition || 'Clear'
+            } : undefined}
+          />
+        )}
       </SidebarInset>
     </SidebarProvider>
   );
 }
-
-    
