@@ -240,32 +240,33 @@ export default function GenScoutAIClient() {
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (apiKey && apiKey !== "YOUR_GOOGLE_MAPS_API_KEY_PLACEHOLDER") {
+    if (apiKey && apiKey !== "YOUR_GOOGLE_MAPS_API_KEY_PLACEHOLDER" && apiKey.length > 10) { // Basic check for non-empty, non-placeholder
       setGoogleMapsApiKey(apiKey);
     } else {
-      console.warn("Google Maps API Key is not configured. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
+      console.warn("Google Maps API Key is not configured or is invalid. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
       toast({
-        title: "Google Maps API Key Configuration Needed",
+        title: "Google Maps API Key Configuration Critical",
         description: (
           <div>
-            <p className="font-semibold">Street View & Autocomplete may fail. Please check:</p>
+            <p className="font-semibold">Street View & Autocomplete WILL FAIL without proper API setup.</p>
+            <p className="mt-2">Please ensure the following for the Google Cloud Project tied to your API key:</p>
             <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
-              <li>Your <strong>`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`</strong> in the <strong>`.env`</strong> file is correct.</li>
-              <li>In Google Cloud Console, for that key&apos;s project, ensure these APIs are <strong>ENABLED</strong>:
-                <ul className="list-disc list-inside pl-4">
+              <li>Your <strong>`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`</strong> in the <strong>`.env`</strong> file is correct and valid.</li>
+              <li>The following APIs are <strong>ENABLED</strong> in Google Cloud Console:
+                <ul className="list-disc list-inside pl-4 font-medium">
                   <li>Maps JavaScript API</li>
                   <li>Street View Static API</li>
-                  <li><strong>Places API</strong> (the legacy one - try enabling this if Autocomplete fails)</li>
                   <li>Places API (New)</li>
+                  <li className="text-destructive"><strong>IMPORTANT for Autocomplete: The LEGACY "Places API" must ALSO be enabled. This is separate from "Places API (New)". The error "Legacy API Not Activated" directly points to this.</strong></li>
                 </ul>
               </li>
               <li>Billing is enabled and active for your Google Cloud project.</li>
             </ol>
-            <p className="mt-2 text-xs italic">The Autocomplete widget (part of Maps JavaScript API) sometimes requires the legacy &apos;Places API&apos; to be active even if &apos;Places API (New)&apos; is enabled.</p>
+            <p className="mt-2 text-xs italic">The error you're seeing is a direct message from Google indicating the legacy "Places API" is not active for your project. Enabling "Places API (New)" alone is often insufficient for the standard Autocomplete widget.</p>
           </div>
         ),
         variant: "destructive",
-        duration: 20000,
+        duration: 30000, 
       });
     }
   }, [toast]);
