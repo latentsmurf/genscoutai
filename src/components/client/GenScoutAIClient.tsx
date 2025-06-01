@@ -165,9 +165,20 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
             }
           });
         } else {
-          onStreetViewStatusChange('ERROR', `Geocoding failed: ${status}`);
+          let userMessage = `Geocoding failed: ${status}`;
+          if (status === google.maps.GeocoderStatus.ZERO_RESULTS) {
+            userMessage = `Could not find location: "${locationQuery}". Please try a different or more specific search term.`;
+          } else if (status === google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
+            userMessage = "The app has exceeded its Google Maps API usage limits. Please try again later.";
+          } else if (status === google.maps.GeocoderStatus.REQUEST_DENIED) {
+            userMessage = "Google Maps API request denied. Please check your API key and project setup.";
+          } else if (status === google.maps.GeocoderStatus.INVALID_REQUEST) {
+            userMessage = `The location search for "${locationQuery}" was invalid. Please check your search term.`;
+          }
+          
+          onStreetViewStatusChange('ERROR', userMessage);
           if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-          if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Could not find location: ${locationQuery}.</p>`;
+          if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">${userMessage}</p>`;
         }
       });
     }).catch(e => {
@@ -283,7 +294,7 @@ export default function GenScoutAIClient() {
     } else {
       setIsStreetViewReady(false);
       if (message) {
-        toast({ title: "Street View Info", description: message, variant: status === 'ERROR' ? "destructive" : "default" });
+        toast({ title: "Street View Info", description: message, variant: status === 'ERROR' || status === 'ZERO_RESULTS' ? "destructive" : "default" });
       }
     }
   }, [toast]);
@@ -351,8 +362,6 @@ export default function GenScoutAIClient() {
     const pitch = pov.pitch;
     let fov = 90; // Default FOV
     if (zoom !== undefined) {
-      // This formula is a common approximation.
-      // Max FOV for Street View Static API is typically 120. Min is around 10.
       fov = Math.max(10, Math.min(120, 180 / Math.pow(2, zoom)));
     }
 
@@ -422,12 +431,12 @@ export default function GenScoutAIClient() {
     setIsGeneratingCinematicImage(true);
 
     const panorama = streetViewPanoramaRef.current;
-    const panoId = panorama.getPano();
+    const panoId = panorama.getPano(); // Correct method to get Pano ID
     const pov = panorama.getPov();
     const zoom = panorama.getZoom();
 
 
-    if (panoId && pov && googleMapsApiKey) {
+    if (panoId && pov && googleMapsApiKey) { // Ensure panoId is a string
         await processSnapshot(panoId, pov, zoom, googleMapsApiKey);
     } else {
         const reason = !panoId ? "Could not retrieve Street View Pano ID." : !pov ? "Could not retrieve Street View Point of View." : "Google Maps API Key is missing.";
