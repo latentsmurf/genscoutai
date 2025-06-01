@@ -38,9 +38,10 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -229,7 +230,7 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (status === 'ERROR' && message) { 
+      if (status === 'ERROR' && message) { // Only toast for actual errors, not ZERO_RESULTS
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
@@ -412,7 +413,7 @@ export default function GenScoutAIClient() {
         title: "Google Maps API Key Configuration Critical",
         description: (
           <div>
-            <p className="font-semibold">Street View, Map & Autocomplete WILL FAIL without proper API setup.</p>
+            <p className="font-semibold">Street View, Map &amp; Autocomplete WILL FAIL without proper API setup.</p>
             <p className="mt-2">Please ensure the following for the Google Cloud Project tied to your API key:</p>
             <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
               <li>Your <strong>`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`</strong> in the <strong>`.env`</strong> file is correct and valid.</li>
@@ -587,9 +588,6 @@ export default function GenScoutAIClient() {
     }
     const staticImageUrl = `https://maps.googleapis.com/maps/api/streetview?pano=${panoId}&size=800x450&heading=${pov.heading}&pitch=${pov.pitch}&fov=${fov}&key=${googleMapsApiKey}`;
 
-    // No setIsGeneratingCinematicImage(true) here; processSnapshotAndGenerateAI will handle it.
-    // No setGeneratedCinematicImage(null) here; processSnapshotAndGenerateAI will handle it.
-
     try {
       const response = await fetch(staticImageUrl);
       if (!response.ok) {
@@ -622,14 +620,12 @@ export default function GenScoutAIClient() {
     } catch (error) {
       console.error("Error fetching/processing Street View snapshot:", error);
       setLastStreetViewSnapshotDataUri(null);
-      // setGeneratedCinematicImage(null); // processSnapshot handles this
       toast({
           title: "Street View Snapshot Failed",
           description: `Could not fetch or process Street View image. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
           duration: 10000,
       });
-      // setIsGeneratingCinematicImage(false); // processSnapshot handles this
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false);
     }
   };
@@ -807,7 +803,7 @@ export default function GenScoutAIClient() {
                         disabled={!googleMapsApiLoaded}
                       />
                   </SidebarGroup>
-                  <ScrollArea className="h-[calc(100vh-220px)] pr-2"> 
+                  <ScrollArea className="h-[calc(100vh-220px)] pr-2"> {/* Adjusted height to accommodate cost section */}
                     <div className="space-y-3">
                       {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
                         <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
@@ -834,6 +830,35 @@ export default function GenScoutAIClient() {
                   </ScrollArea>
                 </TabsContent>
               </Tabs>
+              <Separator className="my-4 mx-2" />
+              <SidebarGroup className="px-2 pb-2">
+                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-2">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Usage &amp; Cost Monitoring
+                </SidebarGroupLabel>
+                <SidebarGroupContent className="mt-2">
+                  <Alert variant="default" className="p-3">
+                    <AlertTitle className="text-sm font-semibold">Monitor Your API Costs</AlertTitle>
+                    <AlertDescription className="text-xs space-y-1.5 mt-1">
+                      <p>
+                        This application utilizes Google Cloud services (Maps, AI image generation via Genkit) which incur costs based on usage.
+                      </p>
+                      <p>
+                        For detailed billing, API usage metrics, and to set up budgets or alerts, please refer to your <strong>Google Cloud Console Billing dashboard</strong>.
+                      </p>
+                      <p>This is not a real-time cost tracker. Estimated pricing can be found at:</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li>
+                          Google Maps Platform: <code className="text-xs bg-muted p-0.5 rounded">cloud.google.com/maps-platform/pricing</code>
+                        </li>
+                        <li>
+                          Vertex AI (Gemini models): <code className="text-xs bg-muted p-0.5 rounded">cloud.google.com/vertex-ai/pricing</code>
+                        </li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                </SidebarGroupContent>
+              </SidebarGroup>
             </ScrollArea>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-sidebar-border">
@@ -1048,8 +1073,6 @@ export default function GenScoutAIClient() {
                     </Button>
                 </div>
                 {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-                {googleMapsApiLoaded && currentDisplayMode !== 'streetview' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
-                {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
               </CardContent>
             </Card>
           )}
@@ -1221,4 +1244,3 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
-
