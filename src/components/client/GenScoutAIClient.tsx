@@ -232,7 +232,7 @@ export default function GenScoutAIClient() {
       if (status === 'ERROR' && message) { 
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
-      // For ZERO_RESULTS, no toast is shown, UI below shot config panel will indicate unavailability
+      // For ZERO_RESULTS, no toast is shown by GenScoutAIClient, StreetViewDisplay handles it.
     }
   }, [toast]);
 
@@ -1011,7 +1011,8 @@ export default function GenScoutAIClient() {
                     </Button>
                 </div>
                 {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-                {googleMapsApiLoaded && currentDisplayMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
+                {/* The following line is removed as StreetViewDisplay will handle its own status messages */}
+                {/* {googleMapsApiLoaded && currentDisplayMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>} */}
                 {googleMapsApiLoaded && currentDisplayMode !== 'streetview' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
                 {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
               </CardContent>

@@ -22,28 +22,40 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
   const streetViewContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
   const [_currentPanoId, setCurrentPanoId] = useState<string | null>(null); // Renamed to avoid confusion if used
-  const [isStreetViewInitialized, setIsStreetViewInitialized] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
 
   useEffect(() => {
+    const currentContainer = streetViewContainerRef.current;
+    if (!currentContainer) return;
+
+    setIsLoadingStreetView(true);
+    setStatusMessage(null); // Clear previous messages when location/api key/status changes
+
     if (!apiKey) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
       onStreetViewStatusChange('ERROR', 'Google Maps API Key is missing.');
-      setIsStreetViewInitialized(false);
+      setStatusMessage('Google Maps API Key is missing. Street View cannot be displayed.');
       setIsLoadingStreetView(false);
       return;
     }
 
-    if (!isApiLoaded || !streetViewContainerRef.current || typeof window.google === 'undefined' || !window.google.maps) {
+    if (!isApiLoaded) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      if (!isApiLoaded && apiKey) {
-         onStreetViewStatusChange('ERROR', 'Google Maps API not loaded yet.');
-      }
-      setIsStreetViewInitialized(false);
+      onStreetViewStatusChange('ERROR', 'Google Maps API not loaded yet.');
+      setStatusMessage('Google Maps API is not loaded yet. Please wait.');
       setIsLoadingStreetView(false);
       return;
     }
     
+    if (!locationToLoad) {
+      if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+      onStreetViewStatusChange('ZERO_RESULTS', 'No location specified for Street View.'); // Technically not an error but no data
+      setStatusMessage('Search for a location or click on the map to explore in Street View.');
+      setIsLoadingStreetView(false);
+      return;
+    }
+
     const isCoordinates = locationToLoad.startsWith('coords:');
     let queryParamForService: string | google.maps.LatLngLiteral | null = null;
 
@@ -60,26 +72,21 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
         queryParamForService = locationToLoad;
     }
 
-    if (!queryParamForService && locationToLoad) {
+    if (!queryParamForService) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      onStreetViewStatusChange('ERROR', `Invalid location format provided: ${locationToLoad}`);
+      onStreetViewStatusChange('ERROR', `Invalid location format: ${locationToLoad}`);
+      setStatusMessage(`Invalid location format provided: ${locationToLoad}. Please try a valid address or coordinates.`);
       setIsLoadingStreetView(false);
-      setIsStreetViewInitialized(true); 
       return;
     }
     
-    if (!locationToLoad) {
-      if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      onStreetViewStatusChange('ZERO_RESULTS', 'No location specified for Street View.');
-      setIsLoadingStreetView(false);
-      setIsStreetViewInitialized(true);
-      return;
-    }
-
-    setIsLoadingStreetView(true);
-    setIsStreetViewInitialized(false);
-
     const processLocationForPanorama = (locationForPanoService: string | google.maps.LatLng | google.maps.LatLngLiteral) => {
+        if (!window.google || !window.google.maps || !window.google.maps.StreetViewService) {
+            onStreetViewStatusChange('ERROR', 'Google Maps StreetViewService not available.');
+            setStatusMessage('Street View service component failed to load. Please refresh.');
+            setIsLoadingStreetView(false);
+            return;
+        }
         const streetViewService = new window.google.maps.StreetViewService();
         streetViewService.getPanorama(
           { 
@@ -89,9 +96,9 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
           }, 
           (data, svStatus) => {
             setIsLoadingStreetView(false);
-            setIsStreetViewInitialized(true);
-            if (svStatus === window.google.maps.StreetViewStatus.OK && streetViewContainerRef.current && data && data.location && data.location.pano && data.location.latLng) {
+            if (svStatus === window.google.maps.StreetViewStatus.OK && currentContainer && data && data.location && data.location.pano && data.location.latLng) {
                 onStreetViewStatusChange('OK');
+                setStatusMessage(null); // Clear message on success
                 const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
                     pano: data.location.pano,
                     position: data.location.latLng,
@@ -110,39 +117,45 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
                     disableDefaultUI: false, 
                 };
                 
-                // Always create a new Panorama instance to ensure it's bound to the current div
                 streetViewPanoramaRef.current = new window.google.maps.StreetViewPanorama(
-                    streetViewContainerRef.current, // The local div in this instance of StreetViewDisplay
+                    currentContainer,
                     panoramaOptions
                 );
                 setCurrentPanoId(data.location.pano);
 
             } else {
-                let userMessage = `Street View status: ${svStatus}.`;
-                if(svStatus === window.google.maps.StreetViewStatus.ZERO_RESULTS) {
-                    userMessage = "Street View data not found for this location or precise spot. Try adjusting the map marker slightly.";
-                } else if (svStatus === window.google.maps.StreetViewStatus.UNKNOWN_ERROR) {
-                    userMessage = "An unknown error occurred while fetching Street View data.";
-                }
-                onStreetViewStatusChange(svStatus === window.google.maps.StreetViewStatus.ZERO_RESULTS ? 'ZERO_RESULTS' : 'ERROR', userMessage);
                 if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+                if(svStatus === window.google.maps.StreetViewStatus.ZERO_RESULTS) {
+                    onStreetViewStatusChange('ZERO_RESULTS');
+                    setStatusMessage("Street View data not found for this location. Please try selecting a spot on a blue line on the map.");
+                } else {
+                    const userMessage = `Street View error: ${svStatus}. Try a different location.`;
+                    onStreetViewStatusChange('ERROR', userMessage);
+                    setStatusMessage(userMessage); 
+                }
             }
         });
     };
 
     if (typeof queryParamForService === 'string') { // Needs geocoding
+        if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
+             onStreetViewStatusChange('ERROR', 'Google Maps Geocoder not available.');
+             setStatusMessage('Geocoder service component failed to load. Please refresh.');
+             setIsLoadingStreetView(false);
+             return;
+        }
         const geocoder = new window.google.maps.Geocoder();
         geocoder.geocode({ address: queryParamForService }, (results, status) => {
             if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry && results[0].geometry.location) {
                 processLocationForPanorama(results[0].geometry.location);
             } else {
                 setIsLoadingStreetView(false);
-                setIsStreetViewInitialized(true);
                 let userMessage = `Geocoding failed for Street View: ${status}`;
                  if (status === window.google.maps.GeocoderStatus.ZERO_RESULTS) {
                     userMessage = `Could not find location for Street View: "${queryParamForService}".`;
                 }
                 onStreetViewStatusChange('ERROR', userMessage);
+                setStatusMessage(userMessage);
                 if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
             }
         });
@@ -152,38 +165,20 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationToLoad, apiKey, isApiLoaded]); 
 
-  const showLoadingOverlay = isApiLoaded && apiKey && (isLoadingStreetView || (!isStreetViewInitialized && locationToLoad));
-  const showApiKeyMissingOverlay = !apiKey;
-  const showApiNotLoadedOverlay = !isApiLoaded && apiKey && !isLoadingStreetView;
-  const showInitialMessageOverlay = isApiLoaded && apiKey && !locationToLoad && isStreetViewInitialized && !isLoadingStreetView;
-
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
-      {showApiKeyMissingOverlay && (
-         <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10 p-4 text-center">
-            <ImageIcon className="w-16 h-16 text-destructive mb-2" />
-            <p className="text-destructive font-semibold">API Key Missing</p>
-            <p className="text-sm text-muted-foreground">Street View cannot be displayed.</p>
-        </div>
-      )}
-      {showApiNotLoadedOverlay && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10 p-4 text-center">
-          <ImageIcon className="w-16 h-16 text-primary animate-pulse mb-2" />
-          <p className="text-foreground font-semibold">Loading Map API...</p>
-        </div>
-      )}
-      {showLoadingOverlay && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 z-10 p-4 text-center">
+      {isLoadingStreetView && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm z-20 p-4 text-center rounded-lg">
           <ImageIcon className="w-16 h-16 text-primary animate-pulse mb-2" />
           <p className="text-foreground font-semibold">Loading Street View...</p>
           <p className="text-sm text-muted-foreground">Please wait.</p>
         </div>
       )}
-       {showInitialMessageOverlay && (
-         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted z-0 p-4 text-center">
-            <ImageIcon className="w-16 h-16 text-primary/50 mb-2" />
-            <p className="text-muted-foreground">Search for a location or click on the map to explore in Street View.</p>
+      {!isLoadingStreetView && statusMessage && (
+         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 backdrop-blur-sm z-10 p-4 text-center rounded-lg">
+            <ImageIcon className="w-12 h-12 text-primary/70 mb-3" />
+            <p className="text-base text-foreground px-4">{statusMessage}</p>
         </div>
       )}
       <div ref={streetViewContainerRef} className="w-full h-full min-h-[400px] md:min-h-[calc(100vh-12rem)] rounded-lg" />
