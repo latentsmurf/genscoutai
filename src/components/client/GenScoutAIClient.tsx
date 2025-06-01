@@ -101,7 +101,6 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
           searchInputRef.current,
           { types: ['geocode'] }
         );
-        // Specify the fields to be returned to potentially avoid legacy API calls for Place Details
         autocomplete.setFields(['name', 'formatted_address', 'geometry']);
 
         autocomplete.addListener('place_changed', () => {
@@ -264,10 +263,27 @@ export default function GenScoutAIClient() {
     } else {
       console.warn("Google Maps API Key is not configured. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
       toast({
-        title: "API Key Configuration Issue",
-        description: "Google Maps API Key is not set or is invalid. Street View & Autocomplete functionality will be limited. Please ensure your key is correct and that 'Maps JavaScript API', 'Street View Static API', and 'Places API' are enabled in your Google Cloud Console.",
+        title: "Google Maps API Key Configuration Needed",
+        description: (
+          <div>
+            <p className="font-semibold">Street View & Autocomplete may fail. Please check:</p>
+            <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
+              <li>Your <strong>`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`</strong> in the <strong>`.env`</strong> file is correct.</li>
+              <li>In Google Cloud Console, for that key&apos;s project, ensure these APIs are <strong>ENABLED</strong>:
+                <ul className="list-disc list-inside pl-4">
+                  <li>Maps JavaScript API</li>
+                  <li>Street View Static API</li>
+                  <li><strong>Places API</strong> (the legacy one - try enabling this if Autocomplete fails)</li>
+                  <li>Places API (New)</li>
+                </ul>
+              </li>
+              <li>Billing is enabled and active for your Google Cloud project.</li>
+            </ol>
+            <p className="mt-2 text-xs italic">The Autocomplete widget sometimes requires the legacy &apos;Places API&apos; even if &apos;Places API (New)&apos; is active.</p>
+          </div>
+        ),
         variant: "destructive",
-        duration: 15000,
+        duration: 20000, 
       });
     }
   }, [toast]);
