@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -39,7 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -85,6 +86,7 @@ export default function GenScoutAIClient() {
   const [locationInfo, setLocationInfo] = useState<GenerateLocationInfoOutput | null>(null);
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
   const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
+  const [modificationPrompt, setModificationPrompt] = useState<string>("");
 
 
   // Refs
@@ -201,7 +203,7 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (status === 'ERROR' && message) { // Only show toast for actual errors, not ZERO_RESULTS
+      if (status === 'ERROR' && message) { 
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
@@ -248,16 +250,16 @@ export default function GenScoutAIClient() {
     setCurrentMapCenter(latLng);
     setMarkerPosition(latLng);
     const coordString = `coords:${latLng.lat},${latLng.lng}`;
-    setLocationForStreetView(coordString); // Use precise coords for Street View
+    setLocationForStreetView(coordString); 
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-      fetchLocationInformation(coordString, latLng); // Fetch info with coords if geocoder not ready
+      fetchLocationInformation(coordString, latLng); 
       return;
     }
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
-      let locationNameForInfo = coordString; // Fallback to coord string for info
+      let locationNameForInfo = coordString; 
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
         locationNameForInfo = results[0].formatted_address || coordString;
       } else {
@@ -461,7 +463,7 @@ export default function GenScoutAIClient() {
   }, [googleMapsApiLoaded]); 
 
 
-  const processSnapshotAndGenerateAI = async (base64StreetViewImage: string) => {
+  const processSnapshotAndGenerateAI = async (base64StreetViewImage: string, currentModificationPrompt?: string) => {
     if (isGeneratingCinematicImage) return; 
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null); 
@@ -473,6 +475,7 @@ export default function GenScoutAIClient() {
         weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
         sceneDescription: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
         shotDirection: shotDirection,
+        modificationInstruction: currentModificationPrompt || undefined,
       };
 
       const result = await generateCinematicShot(aiInput);
@@ -556,6 +559,7 @@ export default function GenScoutAIClient() {
       });
       
       setLastStreetViewSnapshotDataUri(base64data); 
+      setModificationPrompt(""); // Clear previous modification prompt on new snapshot
       await processSnapshotAndGenerateAI(base64data); 
 
     } catch (error) {
@@ -581,8 +585,24 @@ export default function GenScoutAIClient() {
     if (isGeneratingCinematicImage) return; 
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri);
+    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri); // Regenerate without modification prompt
   };
+
+  const handleModifyAndRegenerate = async () => {
+    if (!lastStreetViewSnapshotDataUri) {
+      toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
+      return;
+    }
+    if (!modificationPrompt.trim()) {
+      toast({ title: "Modification Empty", description: "Please enter a modification instruction.", variant: "default" });
+      return;
+    }
+    if (isGeneratingCinematicImage) return;
+
+    toast({ title: "Modifying & Regenerating", description: "AI is applying your changes...", variant: "default" });
+    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, modificationPrompt);
+  };
+
 
   if (!isClient) {
     return (
@@ -718,7 +738,7 @@ export default function GenScoutAIClient() {
                 
                 <TabsContent value="famous-locations" className="p-4 pt-0">
                   <SidebarGroup>
-                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-2">
+                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-1">
                       <DatabaseIcon className="w-3.5 h-3.5" /> Search Filming Locations
                     </SidebarGroupLabel>
                     <Input
@@ -798,11 +818,7 @@ export default function GenScoutAIClient() {
                       variant="outline" 
                       size="sm" 
                       onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
-                      disabled={
-                        !googleMapsApiLoaded ||
-                        (viewMode === 'map' && !locationForStreetView) || 
-                        (viewMode === 'streetview' && !googleMapsApiLoaded) 
-                      }
+                      disabled={!googleMapsApiLoaded || (viewMode === 'map' && (!locationForStreetView || locationForStreetView.trim() === ''))}
                       className="ml-auto min-w-[130px]"
                     >
                       {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
@@ -899,7 +915,7 @@ export default function GenScoutAIClient() {
                       onClick={handleSnapshot}
                       disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
                     >
-                      {isGeneratingCinematicImage && !generatedCinematicImage ? ( 
+                      {isGeneratingCinematicImage && !generatedCinematicImage && lastStreetViewSnapshotDataUri ? ( 
                         <>
                           <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
                         </>
@@ -969,10 +985,10 @@ export default function GenScoutAIClient() {
           <DialogHeader className="p-4 border-b">
             <DialogTitle>Generated Cinematic Shot</DialogTitle>
             <DialogDescription>
-              AI-reimagined scene based on your selections.
+              AI-reimagined scene. You can try to modify it with text prompts below.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-4">
+          <div className="p-4 space-y-4">
             {isGeneratingCinematicImage && !generatedCinematicImage && ( 
                 <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
                     <Skeleton className="w-full h-full rounded-lg" />
@@ -992,7 +1008,7 @@ export default function GenScoutAIClient() {
                     />
                      <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
                         <ImageIcon className="w-12 h-12 text-white animate-pulse" />
-                         <p className="ml-2 text-white">Regenerating variation...</p>
+                         <p className="ml-2 text-white">Applying modifications...</p>
                     </div>
                 </div>
             )}
@@ -1028,20 +1044,43 @@ export default function GenScoutAIClient() {
                     <p className="ml-2 text-muted-foreground">No image generated yet.</p>
                 </div>
             )}
+             {generatedCinematicImage && !isGeneratingCinematicImage && (
+              <div className="space-y-2">
+                <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
+                  <MessageSquarePlus className="w-4 h-4" />
+                  Modify Image (e.g., "make it snowy", "add dramatic clouds")
+                </Label>
+                <Textarea
+                  id="modification-prompt"
+                  placeholder="Type your modification here..."
+                  value={modificationPrompt}
+                  onChange={(e) => setModificationPrompt(e.target.value)}
+                  className="text-sm"
+                  rows={2}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Note: Advanced edits like adding specific uploaded characters are not yet supported. Modifications will re-generate the image based on the original scene and your text.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between">
             <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap">
                <Button variant="outline" onClick={handleRegenerate} disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && !modificationPrompt ? 'animate-spin' : ''}`} />
                 Regenerate
+              </Button>
+              <Button 
+                variant="default" 
+                onClick={handleModifyAndRegenerate} 
+                disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage || !modificationPrompt.trim()}
+              >
+                <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && modificationPrompt ? 'animate-spin' : ''}`} />
+                Modify & Regenerate
               </Button>
               <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
-              </Button>
-               <Button variant="outline" onClick={handleEnhanceQuality} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Enhance Quality
               </Button>
               <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
                 <Orbit className="mr-2 h-4 w-4" />
@@ -1049,7 +1088,7 @@ export default function GenScoutAIClient() {
               </Button>
             </div>
             <DialogClose asChild>
-              <Button variant="default">Close</Button>
+              <Button variant="secondary">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>

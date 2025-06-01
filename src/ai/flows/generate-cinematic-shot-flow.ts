@@ -22,6 +22,7 @@ const GenerateCinematicShotInputSchema = z.object({
   weatherConditionPrompt: z.string().describe('A short prompt describing the weather (e.g., "light rain", "foggy morning", "clear sky"). This influences atmospheric effects.'),
   sceneDescription: z.string().optional().describe('Optional brief description of the location or scene context.'),
   shotDirection: z.string().describe('Specific instructions for camera angle, view, or framing (e.g., "eye-level view", "low angle looking up").'),
+  modificationInstruction: z.string().optional().describe('Optional additional instruction to modify the scene (e.g., "remove cars", "make it look like a cyberpunk city").'),
 });
 export type GenerateCinematicShotInput = z.infer<typeof GenerateCinematicShotInputSchema>;
 
@@ -39,35 +40,6 @@ export async function generateCinematicShot(input: GenerateCinematicShotInput): 
   return generateCinematicShotFlow(input);
 }
 
-// This prompt definition is kept for reference or potential future use with models that prefer structured prompts.
-// The current implementation crafts a detailed text prompt directly for the image generation model.
-const _promptTemplate = ai.definePrompt({
-  name: 'generateCinematicShotPromptTemplate',
-  input: {schema: GenerateCinematicShotInputSchema},
-  output: {schema: GenerateCinematicShotOutputSchema},
-  prompt: `
-Objective: Create a high-quality, cinematic photograph in 16:9 landscape aspect ratio.
-Base Image: Use the provided street view image as the structural and content foundation.
-{{media url=streetViewImageDataUri}}
-
-Key Cinematic Adjustments:
-1.  **Focal Length & Perspective**: Re-interpret the scene as if captured with a {{{focalLength}}} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective. Ensure the final image is 16:9 landscape regardless of lens choice.
-2.  **Time of Day & Lighting**: The ambiance, lighting, and shadows must accurately reflect '{{{timeOfDayToken}}}'.
-3.  **Weather Conditions**: The scene must incorporate the specified weather: '{{{weatherConditionPrompt}}}'.
-4.  **Shot Framing**: Adhere to the specified shot direction: '{{{shotDirection}}}'.
-5.  **Scene Context**: {{#if sceneDescription}}The location is '{{{sceneDescription}}}'.{{else}}The location is a general urban/street scene.{{/if}}
-
-CRITICAL INSTRUCTIONS:
-A.  **Output Format**: The final image MUST be in a 16:9 landscape aspect ratio. DO NOT generate portrait or square images.
-B.  **Remove ALL UI Overlays**: Ensure the final image is purely the photographic scene. All UI elements, text, navigation arrows, watermarks, logos, or any other non-diegetic graphical elements present in the original street view image MUST be completely removed.
-C.  **Cinematic Quality**: Focus on realistic and compelling composition, lighting, color grading, and texture to produce a visually appealing, film-like image. Avoid an overly "digital," "artificial," or "game-like" look.
-D.  **Maintain Scene Integrity**: While stylizing, the core architectural elements, objects, and general layout of the original scene should remain recognizable. Do not invent entirely new structures or radically alter the environment beyond what's plausible for the requested cinematic transformation.
-
-Generate the reimagined cinematic shot based on these precise instructions.
-`,
-});
-
-
 const generateCinematicShotFlow = ai.defineFlow(
   {
     name: 'generateCinematicShotFlow',
@@ -75,7 +47,6 @@ const generateCinematicShotFlow = ai.defineFlow(
     outputSchema: GenerateCinematicShotOutputSchema,
   },
   async (input: GenerateCinematicShotInput) => {
-    // Construct a detailed text prompt for the image generation model
     let textPrompt = `Objective: Create a high-quality, cinematic photograph in 16:9 landscape aspect ratio.
 Base Image: Use the provided street view image as the structural and content foundation.
 Key Cinematic Adjustments:
@@ -91,11 +62,15 @@ Key Cinematic Adjustments:
       textPrompt += `5. Scene Context: The location is a general urban/street scene.\n`;
     }
 
+    if (input.modificationInstruction) {
+      textPrompt += `Additional Modification Instruction: ${input.modificationInstruction}\nEnsure this instruction is applied to the final image.\n`;
+    }
+
     textPrompt += `CRITICAL INSTRUCTIONS:
 A. Output Format: The final image MUST be in a 16:9 landscape aspect ratio. DO NOT generate portrait or square images.
 B. Remove ALL UI Overlays: Ensure the final image is purely the photographic scene. All UI elements, text, navigation arrows, watermarks, logos, or any other non-diegetic graphical elements present in the original street view image MUST be completely removed.
 C. Cinematic Quality: Focus on realistic and compelling composition, lighting, color grading, and texture to produce a visually appealing, film-like image. Avoid an overly "digital," "artificial," or "game-like" look.
-D. Maintain Scene Integrity: While stylizing, the core architectural elements, objects, and general layout of the original scene should remain recognizable.
+D. Maintain Scene Integrity: While stylizing and applying modifications, the core architectural elements, objects, and general layout of the original scene should remain recognizable unless the modification explicitly requests alteration of these elements.
 
 Generate the reimagined cinematic shot based on these precise instructions.
 `;
@@ -132,4 +107,3 @@ Generate the reimagined cinematic shot based on these precise instructions.
     }
   }
 );
-
