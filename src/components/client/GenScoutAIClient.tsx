@@ -43,8 +43,8 @@ interface StreetViewDisplayProps {
   streetViewPanoramaRef: React.MutableRefObject<google.maps.StreetViewPanorama | null>;
   streetViewContainerRef: React.RefObject<HTMLDivElement>;
   onStreetViewStatusChange: (status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => void;
-  searchInputRef: React.RefObject<HTMLInputElement>; // For Autocomplete
-  onAutocompletePlaceSelected: (placeName: string) => void; // Callback for Autocomplete
+  searchInputRef: React.RefObject<HTMLInputElement>; 
+  onAutocompletePlaceSelected: (placeName: string) => void; 
 }
 
 const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
@@ -71,7 +71,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
       return;
     }
     
-    if (!locationQuery && !generatedImage) { // Don't clear if showing generated image
+    if (!locationQuery && !generatedImage) { 
       if (streetViewPanoramaRef.current) {
          streetViewPanoramaRef.current.setVisible(false);
       }
@@ -85,21 +85,21 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
     setIsLoadingStreetView(true);
     setStreetViewUnavailable(false);
     if (streetViewContainerRef.current) {
-       streetViewContainerRef.current.innerHTML = ''; // Clear previous messages
+       streetViewContainerRef.current.innerHTML = ''; 
     }
 
     const loader = new Loader({
       apiKey: apiKey,
       version: 'weekly',
-      libraries: ['geocoding', 'streetView', 'places'], // Added 'places'
+      libraries: ['geocoding', 'streetView', 'places'], 
     });
 
     loader.load().then(async (google) => {
-      // Initialize Autocomplete
+      
       if (google.maps.places && searchInputRef.current && !autocompleteRef.current) {
         const autocomplete = new google.maps.places.Autocomplete(
           searchInputRef.current,
-          { types: ['geocode'] } // You can customize types: ['address'], ['(cities)'], etc.
+          { types: ['geocode'] } 
         );
         autocomplete.addListener('place_changed', () => {
           const place = autocomplete.getPlace();
@@ -110,7 +110,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
         autocompleteRef.current = autocomplete;
       }
 
-      if (!locationQuery) { // If locationQuery became empty after API load (e.g. initial load)
+      if (!locationQuery) { 
         setIsLoadingStreetView(false);
         if (streetViewContainerRef.current) {
             streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-muted-foreground">Search for a location to see Street View.</p>';
@@ -170,10 +170,10 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
        if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Error loading Google Maps.</p>';
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationQuery, apiKey, generatedImage]); // Ensure searchInputRef, onAutocompletePlaceSelected are stable or correctly handled if they change
+  }, [locationQuery, apiKey, generatedImage]); 
 
   useEffect(() => {
-    // Cleanup Autocomplete listener if the component unmounts or API key changes
+    
     return () => {
       if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
@@ -235,7 +235,7 @@ export default function GenScoutAIClient() {
 
   const [locationQuery, setLocationQuery] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
-  const searchInputRef = useRef<HTMLInputElement>(null); // Ref for Autocomplete
+  const searchInputRef = useRef<HTMLInputElement>(null); 
 
   const [selectedLens, setSelectedLens] = useState<string>('50mm');
   
@@ -261,10 +261,10 @@ export default function GenScoutAIClient() {
     } else {
       console.warn("Google Maps API Key is not configured. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
       toast({
-        title: "API Key Missing",
-        description: "Google Maps API Key is not set. Street View & Autocomplete functionality will be limited.",
+        title: "API Key Configuration Issue",
+        description: "Google Maps API Key is not set or is invalid. Street View & Autocomplete functionality will be limited. Please ensure your key is correct and that 'Maps JavaScript API', 'Street View Static API', and 'Places API' are enabled in your Google Cloud Console.",
         variant: "destructive",
-        duration: 10000,
+        duration: 15000, 
       });
     }
   }, [toast]);
@@ -345,7 +345,7 @@ export default function GenScoutAIClient() {
   const processSnapshot = async (panoId: string, pov: google.maps.StreetViewPov, zoom: number | undefined, currentApiKey: string) => {
     const heading = pov.heading;
     const pitch = pov.pitch;
-    let fov = 90; // Default FOV
+    let fov = 90; 
     if (zoom !== undefined) {
       fov = Math.max(10, Math.min(120, 180 / Math.pow(2, zoom)));
     }
@@ -388,8 +388,8 @@ export default function GenScoutAIClient() {
       console.error("Error processing snapshot or generating AI image:", error);
       setGeneratedCinematicImage(null);
       let description = `Could not process Street View or generate AI image. ${error instanceof Error ? error.message : ''}`;
-      if (error instanceof Error && error.message.includes("403")) {
-        description += " A 403 error often means the Static Street View API is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
+      if (error instanceof Error && String(error.message).includes("403")) {
+        description = "Snapshot Failed: A 403 error often means the 'Street View Static API' is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
       }
       toast({ 
           title: "Snapshot Failed", 
@@ -412,7 +412,7 @@ export default function GenScoutAIClient() {
     setGeneratedCinematicImage(null);
 
     const panorama = streetViewPanoramaRef.current;
-    const panoId = panorama.getPano();
+    const panoId = panorama.getPano(); 
     const pov = panorama.getPov();
     const zoom = panorama.getZoom();
 
@@ -457,7 +457,7 @@ export default function GenScoutAIClient() {
                 <SidebarGroupContent className="space-y-2 mt-2">
                   <div className="flex space-x-2">
                     <Input 
-                      ref={searchInputRef} // Added ref
+                      ref={searchInputRef} 
                       type="text" 
                       placeholder="e.g., Eiffel Tower, Paris" 
                       value={searchInput}
@@ -607,8 +607,8 @@ export default function GenScoutAIClient() {
             streetViewPanoramaRef={streetViewPanoramaRef}
             streetViewContainerRef={streetViewContainerRef}
             onStreetViewStatusChange={handleStreetViewStatusChange}
-            searchInputRef={searchInputRef} // Pass ref
-            onAutocompletePlaceSelected={handleAutocompletePlaceSelected} // Pass callback
+            searchInputRef={searchInputRef} 
+            onAutocompletePlaceSelected={handleAutocompletePlaceSelected} 
           />
       </SidebarInset>
     </SidebarProvider>
