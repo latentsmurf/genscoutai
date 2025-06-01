@@ -43,6 +43,8 @@ interface StreetViewDisplayProps {
   streetViewPanoramaRef: React.MutableRefObject<google.maps.StreetViewPanorama | null>;
   streetViewContainerRef: React.RefObject<HTMLDivElement>;
   onStreetViewStatusChange: (status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => void;
+  searchInputRef: React.RefObject<HTMLInputElement>; // For Autocomplete
+  onAutocompletePlaceSelected: (placeName: string) => void; // Callback for Autocomplete
 }
 
 const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
@@ -53,9 +55,13 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
   streetViewPanoramaRef,
   streetViewContainerRef,
   onStreetViewStatusChange,
+  searchInputRef,
+  onAutocompletePlaceSelected,
 }) => {
   const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
   const [streetViewUnavailable, setStreetViewUnavailable] = useState(false);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+
 
   useEffect(() => {
     if (generatedImage || !apiKey || !streetViewContainerRef.current) {
@@ -65,7 +71,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
       return;
     }
     
-    if (!locationQuery) {
+    if (!locationQuery && !generatedImage) { // Don't clear if showing generated image
       if (streetViewPanoramaRef.current) {
          streetViewPanoramaRef.current.setVisible(false);
       }
@@ -82,14 +88,36 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
        streetViewContainerRef.current.innerHTML = ''; // Clear previous messages
     }
 
-
     const loader = new Loader({
       apiKey: apiKey,
       version: 'weekly',
-      libraries: ['geocoding', 'streetView'],
+      libraries: ['geocoding', 'streetView', 'places'], // Added 'places'
     });
 
     loader.load().then(async (google) => {
+      // Initialize Autocomplete
+      if (google.maps.places && searchInputRef.current && !autocompleteRef.current) {
+        const autocomplete = new google.maps.places.Autocomplete(
+          searchInputRef.current,
+          { types: ['geocode'] } // You can customize types: ['address'], ['(cities)'], etc.
+        );
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          if (place && (place.formatted_address || place.name)) {
+            onAutocompletePlaceSelected(place.formatted_address || place.name!);
+          }
+        });
+        autocompleteRef.current = autocomplete;
+      }
+
+      if (!locationQuery) { // If locationQuery became empty after API load (e.g. initial load)
+        setIsLoadingStreetView(false);
+        if (streetViewContainerRef.current) {
+            streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-muted-foreground">Search for a location to see Street View.</p>';
+        }
+        return;
+      }
+
       const geocoder = new google.maps.Geocoder();
       geocoder.geocode({ address: locationQuery }, (results, status) => {
         setIsLoadingStreetView(false);
@@ -142,7 +170,17 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
        if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Error loading Google Maps.</p>';
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationQuery, apiKey, generatedImage]); // streetViewContainerRef, streetViewPanoramaRef, onStreetViewStatusChange, toast are stable
+  }, [locationQuery, apiKey, generatedImage]); // Ensure searchInputRef, onAutocompletePlaceSelected are stable or correctly handled if they change
+
+  useEffect(() => {
+    // Cleanup Autocomplete listener if the component unmounts or API key changes
+    return () => {
+      if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event) {
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
+    };
+  }, [apiKey]);
+
 
   if (generatedImage) {
     return (
@@ -197,6 +235,8 @@ export default function GenScoutAIClient() {
 
   const [locationQuery, setLocationQuery] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement>(null); // Ref for Autocomplete
+
   const [selectedLens, setSelectedLens] = useState<string>('50mm');
   
   const [timeOfDay, setTimeOfDay] = useState<number>(12);
@@ -222,7 +262,7 @@ export default function GenScoutAIClient() {
       console.warn("Google Maps API Key is not configured. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
       toast({
         title: "API Key Missing",
-        description: "Google Maps API Key is not set. Street View functionality will be limited.",
+        description: "Google Maps API Key is not set. Street View & Autocomplete functionality will be limited.",
         variant: "destructive",
         duration: 10000,
       });
@@ -286,16 +326,22 @@ export default function GenScoutAIClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleLocationSearch = () => {
+  const handleLocationSearch = useCallback(() => {
     if (!searchInput.trim()) {
       toast({ title: "Search Empty", description: "Please enter a location to search.", variant: "default" });
       return;
     }
     setLocationQuery(searchInput);
     setGeneratedCinematicImage(null); 
-    // Toast for initiating search happens in StreetViewDisplay via onStreetViewStatusChange
-  };
+  }, [searchInput, toast]);
   
+  const handleAutocompletePlaceSelected = useCallback((placeName: string) => {
+    setSearchInput(placeName);
+    setLocationQuery(placeName);
+    setGeneratedCinematicImage(null);
+  }, []);
+
+
   const processSnapshot = async (panoId: string, pov: google.maps.StreetViewPov, zoom: number | undefined, currentApiKey: string) => {
     const heading = pov.heading;
     const pitch = pov.pitch;
@@ -349,7 +395,7 @@ export default function GenScoutAIClient() {
           title: "Snapshot Failed", 
           description: description, 
           variant: "destructive",
-          duration: 10000, // Give more time to read the detailed message
+          duration: 10000, 
       });
     } finally {
       setIsGeneratingCinematicImage(false);
@@ -366,9 +412,10 @@ export default function GenScoutAIClient() {
     setGeneratedCinematicImage(null);
 
     const panorama = streetViewPanoramaRef.current;
+    const panoId = panorama.getPano();
     const pov = panorama.getPov();
     const zoom = panorama.getZoom();
-    const panoId = panorama.getPano(); 
+
 
     if (panoId && googleMapsApiKey) {
         await processSnapshot(panoId, pov, zoom, googleMapsApiKey);
@@ -410,6 +457,7 @@ export default function GenScoutAIClient() {
                 <SidebarGroupContent className="space-y-2 mt-2">
                   <div className="flex space-x-2">
                     <Input 
+                      ref={searchInputRef} // Added ref
                       type="text" 
                       placeholder="e.g., Eiffel Tower, Paris" 
                       value={searchInput}
@@ -547,8 +595,6 @@ export default function GenScoutAIClient() {
             <Skeleton className="w-full h-full min-h-[400px] md:min-h-[calc(100vh-12rem)] rounded-lg" />
           </div>
         )}
-        {/* Render StreetViewDisplay if not generating OR if generation is complete (generatedCinematicImage will be set) */}
-        {/* The StreetViewDisplay component itself handles showing the generated image or the interactive view */}
          <StreetViewDisplay 
             locationQuery={locationQuery}
             generatedImage={generatedCinematicImage}
@@ -561,6 +607,8 @@ export default function GenScoutAIClient() {
             streetViewPanoramaRef={streetViewPanoramaRef}
             streetViewContainerRef={streetViewContainerRef}
             onStreetViewStatusChange={handleStreetViewStatusChange}
+            searchInputRef={searchInputRef} // Pass ref
+            onAutocompletePlaceSelected={handleAutocompletePlaceSelected} // Pass callback
           />
       </SidebarInset>
     </SidebarProvider>
