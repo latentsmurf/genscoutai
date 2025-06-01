@@ -265,7 +265,7 @@ export default function GenScoutAIClient() {
     });
   }, [googleMapsApiLoaded, fetchLocationInformation]);
 
-  const handleDownloadImage = useCallback(() => {
+  const handleDownloadImage = useCallback(async () => {
     if (generatedCinematicImage) {
       try {
         const image = new window.Image();
@@ -746,7 +746,7 @@ export default function GenScoutAIClient() {
                     size="sm" 
                     onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
                     disabled={!googleMapsApiLoaded || (viewMode === 'map' && !locationForStreetView)}
-                    className="ml-auto"
+                    className="ml-auto min-w-[130px]"
                   >
                     {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
                     {viewMode === 'map' ? 'Street View' : 'Map View'}
