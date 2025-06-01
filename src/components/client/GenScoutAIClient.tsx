@@ -176,7 +176,7 @@ export default function GenScoutAIClient() {
             setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, toast, setViewMode, setSearchInput, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setLocationForStreetView, fetchLocationInformation]);
+  }, [searchInput, googleMapsApiLoaded, toast, fetchLocationInformation]);
 
   const handleAutocompletePlaceSelected = useCallback((placeName: string, placeGeometry?: google.maps.LatLng | null) => {
     setSearchInput(placeName);
@@ -189,9 +189,9 @@ export default function GenScoutAIClient() {
       setViewMode('map');
       fetchLocationInformation(placeName, newLocation);
     } else {
-      handleLocationSearch(placeName); // Fallback to geocoding (which will also call fetchLocationInformation)
+      handleLocationSearch(placeName); 
     }
-  }, [handleLocationSearch, setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode, fetchLocationInformation]);
+  }, [handleLocationSearch, fetchLocationInformation]);
   
   const handleStreetViewStatusChange = useCallback((status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => {
     if (status === 'OK') {
@@ -218,7 +218,7 @@ export default function GenScoutAIClient() {
     } finally {
       setIsLoadingTimePrompt(false);
     }
-  }, [toast, setTimeOfDay, setIsLoadingTimePrompt, setGeneratedTimePrompt]);
+  }, [toast]);
 
   const handleWeatherConditionChange = useCallback(async (value: string) => {
     if (!value || value === "none") {
@@ -239,7 +239,7 @@ export default function GenScoutAIClient() {
     } finally {
       setIsLoadingWeatherPrompt(false);
     }
-  }, [toast, setWeatherCondition, setIsLoadingWeatherPrompt, setGeneratedWeatherPrompt]);
+  }, [toast]);
 
   const handleMapClick = useCallback((latLng: google.maps.LatLngLiteral) => {
     setCurrentMapCenter(latLng);
@@ -263,7 +263,7 @@ export default function GenScoutAIClient() {
       fetchLocationInformation(addressForStreetView, latLng);
       setViewMode('streetview');
     });
-  }, [setCurrentMapCenter, setMarkerPosition, setLocationForStreetView, setViewMode, googleMapsApiLoaded, fetchLocationInformation]);
+  }, [googleMapsApiLoaded, fetchLocationInformation]);
 
   const handleDownloadImage = useCallback(() => {
     if (generatedCinematicImage) {
@@ -364,7 +364,7 @@ export default function GenScoutAIClient() {
     fetchLocationInformation(location.locationName, location.coordinates);
     // setActiveSidebarTab("custom-search"); // Optionally switch back to custom search tab
     toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
-  }, [setSearchInput, setLocationForStreetView, setCurrentMapCenter, setMarkerPosition, setCurrentMapZoom, setViewMode, toast, fetchLocationInformation]);
+  }, [fetchLocationInformation, toast]);
 
   // Effects
   useEffect(() => {
@@ -745,7 +745,7 @@ export default function GenScoutAIClient() {
                     variant="outline" 
                     size="sm" 
                     onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
-                    disabled={!googleMapsApiLoaded || (viewMode === 'map' && (!locationForStreetView || !markerPosition) && !isStreetViewReady) }
+                    disabled={!googleMapsApiLoaded || (viewMode === 'map' && !locationForStreetView)}
                     className="ml-auto"
                   >
                     {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
