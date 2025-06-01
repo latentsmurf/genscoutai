@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -39,7 +40,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -255,6 +256,23 @@ export default function GenScoutAIClient() {
       duration: 10000,
     });
   }, [toast]);
+  
+  const handleGenerate360Image = useCallback(() => {
+     toast({
+      title: "360 Image Generation (Conceptual)",
+      description: "Generating 360-degree equirectangular images for VR is an advanced feature planned for future updates. It would likely require a specialized AI model and a dedicated Genkit flow.",
+      duration: 10000,
+    });
+  }, [toast]);
+
+  const handleViewIn360VR = useCallback(() => {
+    toast({
+      title: "View in 360/VR (Conceptual)",
+      description: "Displaying the image in a 360/VR viewer is planned for when 360 image generation is available. This would involve integrating a VR-capable image viewer component.",
+      duration: 10000,
+    });
+  }, [toast]);
+
 
   const handleFilmingLocationSelect = useCallback((location: FilmingLocation) => {
     setSearchInput(location.address || location.locationName);
@@ -556,111 +574,6 @@ export default function GenScoutAIClient() {
                     {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
                   </SidebarGroupContent>
                 </SidebarGroup>
-
-                <SidebarGroup>
-                  <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Cinematic Controls</SidebarGroupLabel>
-                  <SidebarGroupContent className="space-y-4 mt-2">
-                    <div>
-                      <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
-                        <Focus className="w-4 h-4" /> Camera Lens
-                      </Label>
-                      <Select value={selectedLens} onValueChange={(value) => { setSelectedLens(value); }}>
-                        <SelectTrigger id="camera-lens" className="w-full text-sm">
-                          <SelectValue placeholder="Select lens" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cameraLenses.map(lens => (
-                            <SelectItem key={lens} value={lens}>{lens}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="time-of-day" className="flex items-center gap-2 text-sm mb-1">
-                        <Sun className="w-4 h-4" /> Time of Day ({timeOfDay}:00)
-                      </Label>
-                      <Slider
-                        id="time-of-day"
-                        min={0}
-                        max={23}
-                        step={1}
-                        value={[timeOfDay]}
-                        onValueChange={(value) => handleTimeOfDayChange(value[0])}
-                        className="my-2"
-                        disabled={!googleMapsApiLoaded}
-                      />
-                      {isLoadingTimePrompt && <p className="text-xs text-muted-foreground italic">Updating AI token...</p>}
-                      {generatedTimePrompt && !isLoadingTimePrompt && (
-                        <div className="mt-1 p-2 bg-muted/50 rounded-md text-xs">
-                          <span className="font-semibold">AI Time Token:</span> {generatedTimePrompt}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="weather-condition" className="flex items-center gap-2 text-sm mb-1">
-                        <Bot className="w-4 h-4" /> Weather Condition
-                      </Label>
-                      <Select value={weatherCondition} onValueChange={handleWeatherConditionChange} disabled={!googleMapsApiLoaded}>
-                        <SelectTrigger id="weather-condition" className="w-full text-sm">
-                          <SelectValue placeholder="Select weather" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
-                          <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
-                          <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
-                          <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
-                          <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {isLoadingWeatherPrompt && <p className="text-xs text-muted-foreground italic mt-1">Updating AI prompt...</p>}
-                      {generatedWeatherPrompt && !isLoadingWeatherPrompt && (
-                        <div className="mt-1 p-2 bg-muted/50 rounded-md text-xs">
-                          <span className="font-semibold">AI Weather Prompt:</span> {generatedWeatherPrompt}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
-                        <Film className="w-4 h-4" /> Shot Direction
-                      </Label>
-                      <Select value={shotDirection} onValueChange={(value) => {setShotDirection(value);}} disabled={!googleMapsApiLoaded}>
-                        <SelectTrigger id="shot-direction" className="w-full text-sm">
-                          <SelectValue placeholder="Select shot direction" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {shotDirectionOptions.map(option => (
-                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground mt-1">Guides the AI's framing of the scene.</p>
-                    </div>
-
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-full text-sm"
-                      onClick={handleSnapshot}
-                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
-                    >
-                      {isGeneratingCinematicImage && !generatedCinematicImage ? ( 
-                        <>
-                          <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
-                        </>
-                      ) : (
-                        <>
-                          <Camera className="w-4 h-4 mr-2" /> Take Cinematic Snapshot
-                        </>
-                      )}
-                    </Button>
-                    {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-                    {googleMapsApiLoaded && viewMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
-                    {googleMapsApiLoaded && viewMode === 'map' && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take a snapshot.</p>}
-                  </SidebarGroupContent>
-                </SidebarGroup>
               </TabsContent>
               
               <TabsContent value="famous-locations" className="p-4 pt-0">
@@ -677,7 +590,7 @@ export default function GenScoutAIClient() {
                       disabled={!googleMapsApiLoaded}
                     />
                  </SidebarGroup>
-                <ScrollArea className="h-[calc(100vh-220px)] pr-2"> {/* Adjust height as needed */}
+                <ScrollArea className="h-[calc(100vh-220px)] pr-2"> 
                   <div className="space-y-3">
                     {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
                       <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
@@ -715,19 +628,143 @@ export default function GenScoutAIClient() {
           </p>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="p-2 md:p-4 flex flex-col">
-          <div className="mb-2 flex justify-end">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
-              disabled={!googleMapsApiLoaded || (viewMode === 'map' && (!locationForStreetView || !markerPosition) && !isStreetViewReady) }
-            >
-              {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
-              {viewMode === 'map' ? 'Show Street View' : 'Show Map View'}
-            </Button>
-          </div>
-          <div className="flex-grow">
+      
+      <SidebarInset className="p-2 md:p-4 flex flex-col gap-4">
+          <Card>
+            <CardHeader className="pb-2 pt-4 px-4">
+              <CardTitle className="text-lg flex items-center justify-between">
+                Shot Configuration
+                 <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
+                    disabled={!googleMapsApiLoaded || (viewMode === 'map' && (!locationForStreetView || !markerPosition) && !isStreetViewReady) }
+                    className="ml-auto"
+                  >
+                    {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
+                    {viewMode === 'map' ? 'Street View' : 'Map View'}
+                  </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-wrap gap-4 items-start">
+                <div className="flex-grow min-w-[150px]">
+                  <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                    <Focus className="w-4 h-4" /> Camera Lens
+                  </Label>
+                  <Select value={selectedLens} onValueChange={setSelectedLens}>
+                    <SelectTrigger id="camera-lens" className="w-full text-sm">
+                      <SelectValue placeholder="Select lens" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cameraLenses.map(lens => (
+                        <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-grow min-w-[200px] w-full md:w-auto">
+                  <Label htmlFor="time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                    <Sun className="w-4 h-4" /> Time of Day ({timeOfDay}:00)
+                    {isLoadingTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                  </Label>
+                  <Slider
+                    id="time-of-day"
+                    min={0}
+                    max={23}
+                    step={1}
+                    value={[timeOfDay]}
+                    onValueChange={(value) => handleTimeOfDayChange(value[0])}
+                    className="my-2"
+                    disabled={!googleMapsApiLoaded}
+                  />
+                  {generatedTimePrompt && !isLoadingTimePrompt && (
+                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                      <span className="font-semibold">Token:</span> {generatedTimePrompt}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-grow min-w-[150px]">
+                  <Label htmlFor="weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                    <Bot className="w-4 h-4" /> Weather
+                     {isLoadingWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                  </Label>
+                  <Select value={weatherCondition} onValueChange={handleWeatherConditionChange} disabled={!googleMapsApiLoaded}>
+                    <SelectTrigger id="weather-condition" className="w-full text-sm">
+                      <SelectValue placeholder="Select weather" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                      <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                      <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                      <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                      <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                    </SelectContent>
+                  </Select>
+                   {generatedWeatherPrompt && !isLoadingWeatherPrompt && weatherCondition !== 'none' && (
+                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                      <span className="font-semibold">Prompt:</span> {generatedWeatherPrompt}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-grow min-w-[180px]">
+                  <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                    <Film className="w-4 h-4" /> Shot Direction
+                  </Label>
+                  <Select value={shotDirection} onValueChange={setShotDirection} disabled={!googleMapsApiLoaded}>
+                    <SelectTrigger id="shot-direction" className="w-full text-sm">
+                      <SelectValue placeholder="Select shot direction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shotDirectionOptions.map(option => (
+                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Separator />
+               <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="text-sm"
+                    onClick={handleSnapshot}
+                    disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                  >
+                    {isGeneratingCinematicImage && !generatedCinematicImage ? ( 
+                      <>
+                        <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 mr-2" /> Take Cinematic Snapshot
+                      </>
+                    )}
+                  </Button>
+                   <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-sm"
+                    onClick={handleGenerate360Image}
+                    disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                  >
+                    <Orbit className="w-4 h-4 mr-2" /> Generate 360 Image
+                  </Button>
+              </div>
+              {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
+              {googleMapsApiLoaded && viewMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
+              {googleMapsApiLoaded && viewMode === 'map' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
+               {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
+
+
+            </CardContent>
+          </Card>
+
+          <div className="flex-grow relative min-h-[300px] sm:min-h-[400px] md:min-h-0">
             {!googleMapsApiLoaded && (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
                     <MapIcon className="w-16 h-16 text-primary animate-pulse" />
@@ -835,6 +872,10 @@ export default function GenScoutAIClient() {
                <Button variant="outline" onClick={handleEnhanceQuality} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Enhance Quality
+              </Button>
+              <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
+                <Orbit className="mr-2 h-4 w-4" />
+                View in 360/VR
               </Button>
             </div>
             <DialogClose asChild>
