@@ -138,7 +138,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     sceneDescription: 'Maria sings "Do-Re-Mi" with the children on the steps.',
     locationName: 'Mirabell Gardens (Pegasus Fountain & Steps)',
     address: 'Mirabellplatz, 5020 Salzburg, Austria',
-    coordinates: { lat: 47.8048, lng: 13.04 Mirabellplatz },
+    coordinates: { lat: 47.8048, lng: 13.0400 },
     year: 1965,
     imageHint: 'formal garden',
   },
