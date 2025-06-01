@@ -1,9 +1,10 @@
+
 'use server';
 
 /**
  * @fileOverview This file defines a Genkit flow for generating weather condition prompts.
  *
- * The flow takes a weather condition token as input and returns a prompt that can be used to modify the globe's appearance.
+ * The flow takes a weather condition token as input and returns a prompt that can be used to modify the scene's appearance.
  * - generateWeatherConditionPrompt - A function that handles the weather condition prompt generation process.
  * - GenerateWeatherConditionInput - The input type for the generateWeatherConditionPrompt function.
  * - GenerateWeatherConditionOutput - The return type for the generateWeatherConditionPrompt function.
@@ -20,7 +21,7 @@ const GenerateWeatherConditionInputSchema = z.object({
 export type GenerateWeatherConditionInput = z.infer<typeof GenerateWeatherConditionInputSchema>;
 
 const GenerateWeatherConditionOutputSchema = z.object({
-  prompt: z.string().describe('A prompt that can be used to modify the globe appearance.'),
+  prompt: z.string().describe('A prompt that can be used to modify the scene appearance.'),
 });
 export type GenerateWeatherConditionOutput = z.infer<typeof GenerateWeatherConditionOutputSchema>;
 
@@ -34,11 +35,11 @@ const prompt = ai.definePrompt({
   name: 'generateWeatherConditionPrompt',
   input: {schema: GenerateWeatherConditionInputSchema},
   output: {schema: GenerateWeatherConditionOutputSchema},
-  prompt: `You are generating a prompt to create a weather condition on a 3D globe.
+  prompt: `You are generating a prompt to create a weather condition for a scene.
 
 The desired weather condition is: {{{weatherCondition}}}
 
-Generate a concise prompt to create this weather condition. `,
+Generate a concise prompt phrase that describes this weather condition, suitable for an image generation model. For example, if the condition is "rain", a good prompt might be "light rain" or "raining". If the condition is "clear", it might be "clear sky".`,
 });
 
 const generateWeatherConditionPromptFlow = ai.defineFlow(
@@ -52,3 +53,4 @@ const generateWeatherConditionPromptFlow = ai.defineFlow(
     return output!;
   }
 );
+
