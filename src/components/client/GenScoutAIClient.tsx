@@ -607,11 +607,11 @@ export default function GenScoutAIClient() {
           <ScrollArea className="h-full">
             <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="w-full p-0">
               <TabsList className="grid w-full grid-cols-2 mb-2 sticky top-0 bg-sidebar z-10 p-2">
-                <TabsTrigger value="custom-search" className="text-[11px] px-1.5 py-1.5">
-                  <Search className="w-3 h-3 mr-1.5" />Custom Search
+                <TabsTrigger value="custom-search" className="text-[11px] px-1 py-1.5">
+                  <Search className="w-3 h-3 mr-1" />Custom Search
                 </TabsTrigger>
-                <TabsTrigger value="famous-locations" className="text-[11px] px-1.5 py-1.5">
-                  <Film className="w-3 h-3 mr-1.5" />Famous Locations
+                <TabsTrigger value="famous-locations" className="text-[11px] px-1 py-1.5">
+                  <Film className="w-3 h-3 mr-1" />Famous Locations
                 </TabsTrigger>
               </TabsList>
 
