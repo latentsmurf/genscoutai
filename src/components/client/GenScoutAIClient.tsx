@@ -39,11 +39,11 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
-import { generateLocationInfo, type GenerateLocationInfoInput } from '@/ai/flows/generate-location-info-flow';
+import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -82,7 +82,7 @@ export default function GenScoutAIClient() {
   const [isClient, setIsClient] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string>("custom-search");
   const [filmingLocationSearchTerm, setFilmingLocationSearchTerm] = useState<string>("");
-  const [locationInfo, setLocationInfo] = useState<string | null>(null);
+  const [locationInfo, setLocationInfo] = useState<GenerateLocationInfoOutput | null>(null);
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
   const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
 
@@ -114,7 +114,6 @@ export default function GenScoutAIClient() {
     );
   });
   
-  // Helper to fetch location info
   const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
     setIsLoadingLocationInfo(true);
     setLocationInfo(null);
@@ -124,17 +123,22 @@ export default function GenScoutAIClient() {
         input.coordinates = coords;
       }
       const result = await generateLocationInfo(input);
-      setLocationInfo(result.summary);
+      setLocationInfo(result);
     } catch (error) {
       console.error("Error fetching location information:", error);
-      setLocationInfo("Could not load information for this location.");
+      const errorSummary = "Could not load information for this location.";
+      setLocationInfo({
+        summary: errorSummary,
+        permittingInfo: "N/A",
+        parkingAssessment: "N/A",
+        logisticsFeasibility: "N/A"
+      });
       toast({ title: "AI Error", description: "Failed to generate location summary.", variant: "destructive" });
     } finally {
       setIsLoadingLocationInfo(false);
     }
   }, [toast]);
 
-  // Callbacks
   const handleLocationSearch = useCallback((query?: string) => {
     const effectiveQuery = query || searchInput;
     if (!effectiveQuery.trim()) {
@@ -188,7 +192,6 @@ export default function GenScoutAIClient() {
       setViewMode('map');
       fetchLocationInformation(placeName, newLocation);
     } else {
-      // Fallback to geocoding the name if geometry is missing
       handleLocationSearch(placeName); 
     }
   }, [handleLocationSearch, fetchLocationInformation]);
@@ -245,12 +248,10 @@ export default function GenScoutAIClient() {
     setCurrentMapCenter(latLng);
     setMarkerPosition(latLng);
     const coordString = `coords:${latLng.lat},${latLng.lng}`;
-    setLocationForStreetView(coordString); // Always use precise coords for StreetView target from map click
+    setLocationForStreetView(coordString);
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-      fetchLocationInformation(coordString, latLng); // Fetch info with coords string
-      // Don't automatically switch to street view here, let user click the button.
-      // setViewMode('streetview'); 
+      fetchLocationInformation(coordString, latLng);
       return;
     }
 
@@ -263,8 +264,6 @@ export default function GenScoutAIClient() {
         console.warn("Reverse geocoding failed for map click, using raw coords for info:", status);
       }
       fetchLocationInformation(locationNameForInfo, latLng);
-      // Don't automatically switch to street view here.
-      // setViewMode('streetview'); 
     });
   }, [googleMapsApiLoaded, fetchLocationInformation]);
 
@@ -302,7 +301,7 @@ export default function GenScoutAIClient() {
   
           ctx.fillText(watermarkText, canvas.width - padding, canvas.height - padding);
           
-          ctx.shadowColor = "transparent"; // Reset shadow
+          ctx.shadowColor = "transparent"; 
           ctx.shadowBlur = 0;
           ctx.shadowOffsetX = 0;
           ctx.shadowOffsetY = 0;
@@ -365,11 +364,9 @@ export default function GenScoutAIClient() {
     setCurrentMapZoom(15);
     setViewMode('map');
     fetchLocationInformation(location.locationName, location.coordinates);
-    // setActiveSidebarTab("custom-search"); // Optionally switch back to custom search tab
     toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
   }, [fetchLocationInformation, toast]);
 
-  // Effects
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -442,12 +439,10 @@ export default function GenScoutAIClient() {
       });
       autocompleteRef.current = autocomplete;
     }
-    // Cleanup function
     return () => {
       if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event && window.google.maps.event.clearInstanceListeners) {
            window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
-      // Remove PAC container elements that Google Maps might leave behind
       const pacContainers = document.getElementsByClassName('pac-container');
       while (pacContainers.length > 0) {
         pacContainers[0].remove();
@@ -459,15 +454,13 @@ export default function GenScoutAIClient() {
   }, [googleMapsApiLoaded, handleAutocompletePlaceSelected, handleLocationSearch]);
 
   useEffect(() => {
-    // Pre-generate time prompt on initial load if API is ready
     if (googleMapsApiLoaded) { 
         handleTimeOfDayChange(timeOfDay);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiLoaded]); // Only run when googleMapsApiLoaded changes (once on load)
+  }, [googleMapsApiLoaded]); 
 
 
-  // Async operations
   const processSnapshotAndGenerateAI = async (base64StreetViewImage: string) => {
     if (isGeneratingCinematicImage) return; 
     setIsGeneratingCinematicImage(true);
@@ -591,7 +584,6 @@ export default function GenScoutAIClient() {
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri);
   };
 
-  // Render
   if (!isClient) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
@@ -622,7 +614,7 @@ export default function GenScoutAIClient() {
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="custom-search" className="p-4 pt-0 space-y-6">
+                <TabsContent value="custom-search" className="p-4 pt-0 space-y-4">
                   <SidebarGroup>
                     <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Location</SidebarGroupLabel>
                     <SidebarGroupContent className="space-y-2 mt-2">
@@ -660,34 +652,64 @@ export default function GenScoutAIClient() {
                       {locationForStreetView && !locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Current Target: {locationForStreetView}</p>}
                       {locationForStreetView && locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Target: Custom Coordinates</p>}
                       {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
-
-                      {isLoadingLocationInfo && (
-                        <Card className="mt-4">
-                          <CardHeader className="flex flex-row items-center gap-2 p-3">
-                            <InfoIcon className="w-4 h-4 text-primary" />
-                            <CardTitle className="text-sm">Fetching Location Info...</CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <Skeleton className="h-4 w-3/4 mb-2" />
-                            <Skeleton className="h-4 w-full mb-2" />
-                            <Skeleton className="h-4 w-1/2" />
-                          </CardContent>
-                        </Card>
-                      )}
-                      {locationInfo && !isLoadingLocationInfo && (
-                        <Card className="mt-4 bg-secondary/30">
-                          <CardHeader className="flex flex-row items-center gap-2 p-3">
-                            <InfoIcon className="w-4 h-4 text-primary" />
-                            <CardTitle className="text-sm">About {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <p className="text-xs text-foreground">{locationInfo}</p>
-                          </CardContent>
-                        </Card>
-                      )}
-
-                    </SidebarGroupContent>
+                     </SidebarGroupContent>
                   </SidebarGroup>
+
+                  {isLoadingLocationInfo && (
+                    <Card className="mt-0">
+                      <CardHeader className="flex flex-row items-center gap-2 p-3">
+                        <InfoIcon className="w-4 h-4 text-primary animate-spin" />
+                        <CardTitle className="text-sm">Fetching Location Insights...</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3 pt-0 space-y-3">
+                        <div>
+                          <Skeleton className="h-4 w-1/3 mb-1.5" />
+                          <Skeleton className="h-3.5 w-full" />
+                          <Skeleton className="h-3.5 w-5/6 mt-1" />
+                        </div>
+                        <div>
+                          <Skeleton className="h-4 w-1/4 mb-1.5" />
+                          <Skeleton className="h-3.5 w-full" />
+                        </div>
+                        <div>
+                          <Skeleton className="h-4 w-1/3 mb-1.5" />
+                          <Skeleton className="h-3.5 w-full" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                  {locationInfo && !isLoadingLocationInfo && (
+                    <Card className="mt-0 bg-secondary/30">
+                      <CardHeader className="flex flex-row items-center gap-2 p-3">
+                        <InfoIcon className="w-4 h-4 text-primary" />
+                        <CardTitle className="text-sm">Insights for {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3 pt-0 space-y-3 text-xs text-foreground">
+                        <p>{locationInfo.summary}</p>
+                        
+                        <Separator className="my-2 bg-border/50"/>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-primary/80"/>Permitting Info</h4>
+                          <p className="text-muted-foreground">{locationInfo.permittingInfo}</p>
+                        </div>
+                        
+                        <Separator className="my-2 bg-border/50"/>
+
+                        <div>
+                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><ParkingCircle className="w-3.5 h-3.5 text-primary/80"/>Parking Assessment</h4>
+                          <p className="text-muted-foreground">{locationInfo.parkingAssessment}</p>
+                        </div>
+
+                        <Separator className="my-2 bg-border/50"/>
+                        
+                        <div>
+                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-primary/80"/>Logistics Feasibility</h4>
+                          <p className="text-muted-foreground">{locationInfo.logisticsFeasibility}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
                 
                 <TabsContent value="famous-locations" className="p-4 pt-0">
@@ -774,8 +796,8 @@ export default function GenScoutAIClient() {
                       onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
                       disabled={
                         !googleMapsApiLoaded ||
-                        (viewMode === 'map' && !locationForStreetView) ||
-                        (viewMode === 'streetview' && !isStreetViewReady && !!locationForStreetView)
+                        (viewMode === 'map' && !locationForStreetView) || // Can always switch back to map if API loaded
+                        (viewMode === 'streetview' && !googleMapsApiLoaded) 
                       }
                       className="ml-auto min-w-[130px]"
                     >
