@@ -36,7 +36,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, XIcon, Download, Sparkles } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -92,7 +92,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
     const loader = new Loader({
       apiKey: apiKey,
       version: 'weekly',
-      libraries: ['geocoding', 'streetView', 'places'], // Ensure 'places' is loaded
+      libraries: ['geocoding', 'streetView', 'places'],
     });
 
     loader.load().then(async (google) => {
@@ -129,27 +129,33 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
           streetViewService.getPanorama({ location: results[0].geometry.location, radius: 50 }, (data, svStatus) => {
             if (svStatus === google.maps.StreetViewStatus.OK && data && data.location && data.location.latLng) {
               onStreetViewStatusChange('OK');
+              const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
+                pano: data.location.pano,
+                position: data.location.latLng,
+                pov: { heading: 165, pitch: 0 },
+                zoom: 1,
+                visible: true,
+                addressControl: false,
+                linksControl: true,      
+                panControl: true,        
+                zoomControl: true,       
+                clickToGo: true,         
+                enableCloseButton: false,
+                fullscreenControl: false,
+                motionTracking: false,
+                motionTrackingControl: false,
+                disableDefaultUI: false, 
+              };
+
               if (streetViewPanoramaRef.current) {
                 streetViewPanoramaRef.current.setPano(data.location.pano);
                 streetViewPanoramaRef.current.setPosition(data.location.latLng);
+                streetViewPanoramaRef.current.setOptions(panoramaOptions); 
                 streetViewPanoramaRef.current.setVisible(true);
               } else {
                 streetViewPanoramaRef.current = new google.maps.StreetViewPanorama(
                   streetViewContainerRef.current!,
-                  {
-                    pano: data.location.pano,
-                    position: data.location.latLng,
-                    pov: { heading: 165, pitch: 0 },
-                    zoom: 1,
-                    visible: true,
-                    addressControl: false,
-                    linksControl: true,
-                    panControl: true,
-                    enableCloseButton: false,
-                    fullscreenControl: false,
-                    motionTracking: false,
-                    motionTrackingControl: false,
-                  }
+                  panoramaOptions
                 );
               }
             } else {
@@ -174,7 +180,6 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
   }, [locationQuery, apiKey]);
 
   useEffect(() => {
-    // Cleanup autocomplete listeners
     return () => {
       if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
@@ -240,7 +245,7 @@ export default function GenScoutAIClient() {
 
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (apiKey && apiKey !== "YOUR_GOOGLE_MAPS_API_KEY_PLACEHOLDER" && apiKey.length > 10) { // Basic check for non-empty, non-placeholder
+    if (apiKey && apiKey !== "YOUR_GOOGLE_MAPS_API_KEY_PLACEHOLDER" && apiKey.length > 10) { 
       setGoogleMapsApiKey(apiKey);
     } else {
       console.warn("Google Maps API Key is not configured or is invalid. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
@@ -262,7 +267,8 @@ export default function GenScoutAIClient() {
               </li>
               <li>Billing is enabled and active for your Google Cloud project.</li>
             </ol>
-            <p className="mt-2 text-xs italic">The error you're seeing is a direct message from Google indicating the legacy "Places API" is not active for your project. Enabling "Places API (New)" alone is often insufficient for the standard Autocomplete widget.</p>
+            <p className="mt-2 text-xs italic">The error "Legacy API Not Activated" from Google indicates the legacy "Places API" is not active. Enabling "Places API (New)" alone is often insufficient for the standard Autocomplete widget which is part of the Maps JavaScript API.</p>
+             <p className="mt-2 text-xs italic">The "powered by Google" logo in Autocomplete suggestions is a mandatory branding requirement by Google and cannot be removed.</p>
           </div>
         ),
         variant: "destructive",
@@ -343,8 +349,10 @@ export default function GenScoutAIClient() {
   const processSnapshot = async (panoId: string, pov: google.maps.StreetViewPov, zoom: number | undefined, currentApiKey: string) => {
     const heading = pov.heading;
     const pitch = pov.pitch;
-    let fov = 90;
+    let fov = 90; // Default FOV
     if (zoom !== undefined) {
+      // This formula is a common approximation.
+      // Max FOV for Street View Static API is typically 120. Min is around 10.
       fov = Math.max(10, Math.min(120, 180 / Math.pow(2, zoom)));
     }
 
@@ -446,9 +454,9 @@ export default function GenScoutAIClient() {
 
   const handleEnhanceQuality = useCallback(() => {
     toast({
-      title: "Enhance Quality (Coming Soon)",
-      description: "This feature to generate a higher resolution image is planned for future updates. The current AI model may not support distinct resolution tiers.",
-      duration: 5000,
+      title: "Enhance Quality (Conceptual)",
+      description: "This feature to generate a higher resolution or enhanced quality image is planned. The current AI model (Gemini 2.0 Flash) may not directly support different quality/resolution tiers via simple parameters. A more advanced model or a different Genkit flow might be required for this in future updates.",
+      duration: 10000,
     });
   }, [toast]);
 
