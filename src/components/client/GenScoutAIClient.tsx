@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -51,6 +51,7 @@ import StreetViewDisplay from './StreetViewDisplay';
 import MapViewDisplay from './MapViewDisplay';
 import type { FilmingLocation } from '@/types';
 import { sampleFilmingLocations } from '@/data/filming-locations';
+import { cn } from '@/lib/utils';
 
 export default function GenScoutAIClient() {
   const { toast } = useToast();
@@ -83,6 +84,8 @@ export default function GenScoutAIClient() {
   const [filmingLocationSearchTerm, setFilmingLocationSearchTerm] = useState<string>("");
   const [locationInfo, setLocationInfo] = useState<string | null>(null);
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
+  const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
+
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -110,7 +113,7 @@ export default function GenScoutAIClient() {
       loc.address.toLowerCase().includes(searchTermLower)
     );
   });
-
+  
   // Helper to fetch location info
   const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
     setIsLoadingLocationInfo(true);
@@ -185,6 +188,7 @@ export default function GenScoutAIClient() {
       setViewMode('map');
       fetchLocationInformation(placeName, newLocation);
     } else {
+      // Fallback to geocoding the name if geometry is missing
       handleLocationSearch(placeName); 
     }
   }, [handleLocationSearch, fetchLocationInformation]);
@@ -245,7 +249,8 @@ export default function GenScoutAIClient() {
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
       fetchLocationInformation(coordString, latLng); // Fetch info with coords string
-      setViewMode('streetview');
+      // Don't automatically switch to street view here, let user click the button.
+      // setViewMode('streetview'); 
       return;
     }
 
@@ -258,7 +263,8 @@ export default function GenScoutAIClient() {
         console.warn("Reverse geocoding failed for map click, using raw coords for info:", status);
       }
       fetchLocationInformation(locationNameForInfo, latLng);
-      setViewMode('streetview');
+      // Don't automatically switch to street view here.
+      // setViewMode('streetview'); 
     });
   }, [googleMapsApiLoaded, fetchLocationInformation]);
 
@@ -436,10 +442,12 @@ export default function GenScoutAIClient() {
       });
       autocompleteRef.current = autocomplete;
     }
+    // Cleanup function
     return () => {
       if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event && window.google.maps.event.clearInstanceListeners) {
            window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
+      // Remove PAC container elements that Google Maps might leave behind
       const pacContainers = document.getElementsByClassName('pac-container');
       while (pacContainers.length > 0) {
         pacContainers[0].remove();
@@ -451,11 +459,12 @@ export default function GenScoutAIClient() {
   }, [googleMapsApiLoaded, handleAutocompletePlaceSelected, handleLocationSearch]);
 
   useEffect(() => {
+    // Pre-generate time prompt on initial load if API is ready
     if (googleMapsApiLoaded) { 
         handleTimeOfDayChange(timeOfDay);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiLoaded]);
+  }, [googleMapsApiLoaded]); // Only run when googleMapsApiLoaded changes (once on load)
 
 
   // Async operations
@@ -593,282 +602,313 @@ export default function GenScoutAIClient() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
-        <SidebarHeader className="p-4 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <Camera className="w-8 h-8 text-primary" />
-            <h1 className="text-xl font-semibold text-sidebar-foreground">GenScoutAI</h1>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <ScrollArea className="h-full">
-            <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="w-full p-0">
-              <TabsList className="grid w-full grid-cols-2 mb-2 sticky top-0 bg-sidebar z-10 p-2">
-                <TabsTrigger value="custom-search" className="text-[11px] px-1 py-1.5">
-                  <Search className="w-3 h-3 mr-1" />Custom Search
-                </TabsTrigger>
-                <TabsTrigger value="famous-locations" className="text-[11px] px-1 py-1.5">
-                  <Film className="w-3 h-3 mr-1" />Famous Locations
-                </TabsTrigger>
-              </TabsList>
+      {!isUiHidden && (
+        <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
+          <SidebarHeader className="p-4 border-b border-sidebar-border">
+            <div className="flex items-center gap-2">
+              <Camera className="w-8 h-8 text-primary" />
+              <h1 className="text-xl font-semibold text-sidebar-foreground">GenScoutAI</h1>
+            </div>
+          </SidebarHeader>
+          <SidebarContent>
+            <ScrollArea className="h-full">
+              <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="w-full p-0">
+                <TabsList className="grid w-full grid-cols-2 mb-2 sticky top-0 bg-sidebar z-10 p-2">
+                  <TabsTrigger value="custom-search" className="text-[11px] px-1 py-1.5">
+                    <Search className="w-3 h-3 mr-1" />Custom Search
+                  </TabsTrigger>
+                  <TabsTrigger value="famous-locations" className="text-[11px] px-1 py-1.5">
+                    <Film className="w-3 h-3 mr-1" />Famous Locations
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="custom-search" className="p-4 pt-0 space-y-6">
-                <SidebarGroup>
-                  <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Location</SidebarGroupLabel>
-                  <SidebarGroupContent className="space-y-2 mt-2">
-                    <div className="flex space-x-2">
-                      <Input
-                        ref={searchInputRef}
-                        type="text"
-                        placeholder="e.g., Eiffel Tower, Paris"
-                        value={searchInput}
-                        onChange={(e) => setSearchInput(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            if (autocompleteRef.current) {
-                                const pacSelectFirst = () => {
-                                const firstResult = document.querySelector(".pac-item");
-                                if (firstResult && (firstResult as HTMLElement).textContent) {
-                                    (firstResult as HTMLElement).click();
-                                } else {
-                                    handleLocationSearch((e.target as HTMLInputElement).value);
-                                }
-                                };
-                                setTimeout(pacSelectFirst, 150); 
-                            } else {
-                                handleLocationSearch((e.target as HTMLInputElement).value);
+                <TabsContent value="custom-search" className="p-4 pt-0 space-y-6">
+                  <SidebarGroup>
+                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Location</SidebarGroupLabel>
+                    <SidebarGroupContent className="space-y-2 mt-2">
+                      <div className="flex space-x-2">
+                        <Input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="e.g., Eiffel Tower, Paris"
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              if (autocompleteRef.current) {
+                                  const pacSelectFirst = () => {
+                                  const firstResult = document.querySelector(".pac-item");
+                                  if (firstResult && (firstResult as HTMLElement).textContent) {
+                                      (firstResult as HTMLElement).click();
+                                  } else {
+                                      handleLocationSearch((e.target as HTMLInputElement).value);
+                                  }
+                                  };
+                                  setTimeout(pacSelectFirst, 150); 
+                              } else {
+                                  handleLocationSearch((e.target as HTMLInputElement).value);
+                              }
                             }
-                          }
-                        }}
-                        className="text-sm"
-                        disabled={!googleMapsApiKey || !googleMapsApiLoaded}
+                          }}
+                          className="text-sm"
+                          disabled={!googleMapsApiKey || !googleMapsApiLoaded}
+                        />
+                        <Button onClick={() => handleLocationSearch()} size="sm" aria-label="Search location" disabled={!googleMapsApiKey || !googleMapsApiLoaded || !searchInput.trim()}>
+                          <Search className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {locationForStreetView && !locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Current Target: {locationForStreetView}</p>}
+                      {locationForStreetView && locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Target: Custom Coordinates</p>}
+                      {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
+
+                      {isLoadingLocationInfo && (
+                        <Card className="mt-4">
+                          <CardHeader className="flex flex-row items-center gap-2 p-3">
+                            <InfoIcon className="w-4 h-4 text-primary" />
+                            <CardTitle className="text-sm">Fetching Location Info...</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 pt-0">
+                            <Skeleton className="h-4 w-3/4 mb-2" />
+                            <Skeleton className="h-4 w-full mb-2" />
+                            <Skeleton className="h-4 w-1/2" />
+                          </CardContent>
+                        </Card>
+                      )}
+                      {locationInfo && !isLoadingLocationInfo && (
+                        <Card className="mt-4 bg-secondary/30">
+                          <CardHeader className="flex flex-row items-center gap-2 p-3">
+                            <InfoIcon className="w-4 h-4 text-primary" />
+                            <CardTitle className="text-sm">About {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-3 pt-0">
+                            <p className="text-xs text-foreground">{locationInfo}</p>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                </TabsContent>
+                
+                <TabsContent value="famous-locations" className="p-4 pt-0">
+                  <SidebarGroup>
+                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-2">
+                      <DatabaseIcon className="w-3.5 h-3.5" /> Search Filming Locations
+                    </SidebarGroupLabel>
+                    <Input
+                        type="text"
+                        placeholder="Search movie, scene, location..."
+                        value={filmingLocationSearchTerm}
+                        onChange={(e) => setFilmingLocationSearchTerm(e.target.value)}
+                        className="text-sm my-2"
+                        disabled={!googleMapsApiLoaded}
                       />
-                      <Button onClick={() => handleLocationSearch()} size="sm" aria-label="Search location" disabled={!googleMapsApiKey || !googleMapsApiLoaded || !searchInput.trim()}>
-                        <Search className="w-4 h-4" />
-                      </Button>
+                  </SidebarGroup>
+                  <ScrollArea className="h-[calc(100vh-220px)] pr-2"> 
+                    <div className="space-y-3">
+                      {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
+                        <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
+                          <CardHeader className="p-3">
+                            <CardTitle className="text-sm font-semibold">{loc.movieTitle} <span className="text-xs font-normal text-muted-foreground">({loc.year})</span></CardTitle>
+                            <CardDescription className="text-xs">{loc.locationName}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="p-3 pt-0">
+                            <Image
+                                src={`https://placehold.co/300x150.png`}
+                                alt={`${loc.movieTitle} - ${loc.locationName}`}
+                                width={300}
+                                height={150}
+                                data-ai-hint={loc.imageHint}
+                                className="w-full h-auto rounded-sm object-cover mb-2"
+                              />
+                            <p className="text-xs text-muted-foreground leading-tight">{loc.sceneDescription}</p>
+                          </CardContent>
+                        </Card>
+                      )) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No locations match your search.</p>
+                      )}
                     </div>
-                    {locationForStreetView && !locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Current Target: {locationForStreetView}</p>}
-                    {locationForStreetView && locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Target: Custom Coordinates</p>}
-                    {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
+                  </ScrollArea>
+                </TabsContent>
+              </Tabs>
+            </ScrollArea>
+          </SidebarContent>
+          <SidebarFooter className="p-4 border-t border-sidebar-border">
+            <SidebarTrigger className="ml-auto md:hidden">
+              <Camera className="w-6 h-6" />
+            </SidebarTrigger>
+            <p className="text-xs text-sidebar-foreground/70 hidden md:block text-center">
+              GenScoutAI &copy; {new Date().getFullYear()}
+            </p>
+          </SidebarFooter>
+        </Sidebar>
+      )}
+      
+      <SidebarInset 
+        className={cn(
+          "flex flex-col relative", 
+          isUiHidden ? "p-0" : "p-2 md:p-4",
+          !isUiHidden && "gap-4" 
+        )}
+      >
+          {viewMode === 'streetview' && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsUiHidden(!isUiHidden)}
+                className="absolute top-4 right-4 z-50 bg-background/80 hover:bg-background rounded-full shadow-lg"
+                title={isUiHidden ? "Show Controls" : "Hide Controls"}
+              >
+                {isUiHidden ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+              </Button>
+          )}
 
-                    {isLoadingLocationInfo && (
-                      <Card className="mt-4">
-                        <CardHeader className="flex flex-row items-center gap-2 p-3">
-                           <InfoIcon className="w-4 h-4 text-primary" />
-                           <CardTitle className="text-sm">Fetching Location Info...</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0">
-                          <Skeleton className="h-4 w-3/4 mb-2" />
-                          <Skeleton className="h-4 w-full mb-2" />
-                          <Skeleton className="h-4 w-1/2" />
-                        </CardContent>
-                      </Card>
-                    )}
-                    {locationInfo && !isLoadingLocationInfo && (
-                      <Card className="mt-4 bg-secondary/30">
-                         <CardHeader className="flex flex-row items-center gap-2 p-3">
-                           <InfoIcon className="w-4 h-4 text-primary" />
-                           <CardTitle className="text-sm">About {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0">
-                          <p className="text-xs text-foreground">{locationInfo}</p>
-                        </CardContent>
-                      </Card>
-                    )}
+          {!isUiHidden && (
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-lg flex items-center justify-between">
+                  Shot Configuration
+                  <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
+                      disabled={
+                        !googleMapsApiLoaded ||
+                        (viewMode === 'map' && !locationForStreetView) ||
+                        (viewMode === 'streetview' && !isStreetViewReady && !!locationForStreetView)
+                      }
+                      className="ml-auto min-w-[130px]"
+                    >
+                      {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
+                      {viewMode === 'map' ? 'Street View' : 'Map View'}
+                    </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4">
+                <div className="flex flex-wrap gap-4 items-start">
+                  <div className="flex-grow min-w-[150px]">
+                    <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                      <Focus className="w-4 h-4" /> Camera Lens
+                    </Label>
+                    <Select value={selectedLens} onValueChange={setSelectedLens}>
+                      <SelectTrigger id="camera-lens" className="w-full text-sm">
+                        <SelectValue placeholder="Select lens" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cameraLenses.map(lens => (
+                          <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </TabsContent>
-              
-              <TabsContent value="famous-locations" className="p-4 pt-0">
-                 <SidebarGroup>
-                  <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-2">
-                    <DatabaseIcon className="w-3.5 h-3.5" /> Search Filming Locations
-                  </SidebarGroupLabel>
-                   <Input
-                      type="text"
-                      placeholder="Search movie, scene, location..."
-                      value={filmingLocationSearchTerm}
-                      onChange={(e) => setFilmingLocationSearchTerm(e.target.value)}
-                      className="text-sm my-2"
+                  <div className="flex-grow min-w-[200px] w-full md:w-auto">
+                    <Label htmlFor="time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                      <Sun className="w-4 h-4" /> Time of Day ({timeOfDay}:00)
+                      {isLoadingTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                    </Label>
+                    <Slider
+                      id="time-of-day"
+                      min={0}
+                      max={23}
+                      step={1}
+                      value={[timeOfDay]}
+                      onValueChange={(value) => handleTimeOfDayChange(value[0])}
+                      className="my-2"
                       disabled={!googleMapsApiLoaded}
                     />
-                 </SidebarGroup>
-                <ScrollArea className="h-[calc(100vh-220px)] pr-2"> 
-                  <div className="space-y-3">
-                    {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
-                      <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
-                        <CardHeader className="p-3">
-                          <CardTitle className="text-sm font-semibold">{loc.movieTitle} <span className="text-xs font-normal text-muted-foreground">({loc.year})</span></CardTitle>
-                          <CardDescription className="text-xs">{loc.locationName}</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-3 pt-0">
-                           <Image
-                              src={`https://placehold.co/300x150.png`}
-                              alt={`${loc.movieTitle} - ${loc.locationName}`}
-                              width={300}
-                              height={150}
-                              data-ai-hint={loc.imageHint}
-                              className="w-full h-auto rounded-sm object-cover mb-2"
-                            />
-                          <p className="text-xs text-muted-foreground leading-tight">{loc.sceneDescription}</p>
-                        </CardContent>
-                      </Card>
-                    )) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">No locations match your search.</p>
+                    {generatedTimePrompt && !isLoadingTimePrompt && (
+                      <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                        <span className="font-semibold">Token:</span> {generatedTimePrompt}
+                      </div>
                     )}
                   </div>
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
-          </ScrollArea>
-        </SidebarContent>
-        <SidebarFooter className="p-4 border-t border-sidebar-border">
-          <SidebarTrigger className="ml-auto md:hidden">
-            <Camera className="w-6 h-6" />
-          </SidebarTrigger>
-          <p className="text-xs text-sidebar-foreground/70 hidden md:block text-center">
-            GenScoutAI &copy; {new Date().getFullYear()}
-          </p>
-        </SidebarFooter>
-      </Sidebar>
-      
-      <SidebarInset className="p-2 md:p-4 flex flex-col gap-4">
-          <Card>
-            <CardHeader className="pb-2 pt-4 px-4">
-              <CardTitle className="text-lg flex items-center justify-between">
-                Shot Configuration
-                 <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
-                    disabled={!googleMapsApiLoaded || (viewMode === 'map' && !locationForStreetView)}
-                    className="ml-auto min-w-[130px]"
-                  >
-                    {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
-                    {viewMode === 'map' ? 'Street View' : 'Map View'}
-                  </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4">
-              <div className="flex flex-wrap gap-4 items-start">
-                <div className="flex-grow min-w-[150px]">
-                  <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
-                    <Focus className="w-4 h-4" /> Camera Lens
-                  </Label>
-                  <Select value={selectedLens} onValueChange={setSelectedLens}>
-                    <SelectTrigger id="camera-lens" className="w-full text-sm">
-                      <SelectValue placeholder="Select lens" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cameraLenses.map(lens => (
-                        <SelectItem key={lens} value={lens}>{lens}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex-grow min-w-[200px] w-full md:w-auto">
-                  <Label htmlFor="time-of-day" className="flex items-center gap-2 text-sm mb-1">
-                    <Sun className="w-4 h-4" /> Time of Day ({timeOfDay}:00)
-                    {isLoadingTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                  </Label>
-                  <Slider
-                    id="time-of-day"
-                    min={0}
-                    max={23}
-                    step={1}
-                    value={[timeOfDay]}
-                    onValueChange={(value) => handleTimeOfDayChange(value[0])}
-                    className="my-2"
-                    disabled={!googleMapsApiLoaded}
-                  />
-                  {generatedTimePrompt && !isLoadingTimePrompt && (
-                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                      <span className="font-semibold">Token:</span> {generatedTimePrompt}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex-grow min-w-[150px]">
-                  <Label htmlFor="weather-condition" className="flex items-center gap-2 text-sm mb-1">
-                    <Bot className="w-4 h-4" /> Weather
-                     {isLoadingWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                  </Label>
-                  <Select value={weatherCondition} onValueChange={handleWeatherConditionChange} disabled={!googleMapsApiLoaded}>
-                    <SelectTrigger id="weather-condition" className="w-full text-sm">
-                      <SelectValue placeholder="Select weather" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
-                      <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
-                      <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
-                      <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
-                      <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
-                    </SelectContent>
-                  </Select>
-                   {generatedWeatherPrompt && !isLoadingWeatherPrompt && weatherCondition !== 'none' && (
-                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                      <span className="font-semibold">Prompt:</span> {generatedWeatherPrompt}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-grow min-w-[180px]">
-                  <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
-                    <Film className="w-4 h-4" /> Shot Direction
-                  </Label>
-                  <Select value={shotDirection} onValueChange={setShotDirection} disabled={!googleMapsApiLoaded}>
-                    <SelectTrigger id="shot-direction" className="w-full text-sm">
-                      <SelectValue placeholder="Select shot direction" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {shotDirectionOptions.map(option => (
-                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Separator />
-               <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="text-sm"
-                    onClick={handleSnapshot}
-                    disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
-                  >
-                    {isGeneratingCinematicImage && !generatedCinematicImage ? ( 
-                      <>
-                        <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
-                      </>
-                    ) : (
-                      <>
-                        <Camera className="w-4 h-4 mr-2" /> Take Cinematic Snapshot
-                      </>
+                  
+                  <div className="flex-grow min-w-[150px]">
+                    <Label htmlFor="weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                      <Bot className="w-4 h-4" /> Weather
+                      {isLoadingWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                    </Label>
+                    <Select value={weatherCondition} onValueChange={handleWeatherConditionChange} disabled={!googleMapsApiLoaded}>
+                      <SelectTrigger id="weather-condition" className="w-full text-sm">
+                        <SelectValue placeholder="Select weather" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                        <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                        <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                        <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                        <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {generatedWeatherPrompt && !isLoadingWeatherPrompt && weatherCondition !== 'none' && (
+                      <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                        <span className="font-semibold">Prompt:</span> {generatedWeatherPrompt}
+                      </div>
                     )}
-                  </Button>
-                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-sm"
-                    onClick={handleGenerate360Image}
-                    disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
-                  >
-                    <Orbit className="w-4 h-4 mr-2" /> Generate 360 Image
-                  </Button>
-              </div>
-              {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-              {googleMapsApiLoaded && viewMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
-              {googleMapsApiLoaded && viewMode === 'map' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
-               {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
+                  </div>
 
+                  <div className="flex-grow min-w-[180px]">
+                    <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                      <Film className="w-4 h-4" /> Shot Direction
+                    </Label>
+                    <Select value={shotDirection} onValueChange={setShotDirection} disabled={!googleMapsApiLoaded}>
+                      <SelectTrigger id="shot-direction" className="w-full text-sm">
+                        <SelectValue placeholder="Select shot direction" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shotDirectionOptions.map(option => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Separator />
+                <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="text-sm"
+                      onClick={handleSnapshot}
+                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                    >
+                      {isGeneratingCinematicImage && !generatedCinematicImage ? ( 
+                        <>
+                          <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="w-4 h-4 mr-2" /> Take Cinematic Snapshot
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-sm"
+                      onClick={handleGenerate360Image}
+                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                    >
+                      <Orbit className="w-4 h-4 mr-2" /> Generate 360 Image
+                    </Button>
+                </div>
+                {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
+                {googleMapsApiLoaded && viewMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
+                {googleMapsApiLoaded && viewMode === 'map' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
+                {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
+              </CardContent>
+            </Card>
+          )}
 
-            </CardContent>
-          </Card>
-
-          <div className="flex-grow relative min-h-[300px] sm:min-h-[400px] md:min-h-0">
+          <div 
+            className={cn(
+              "relative",
+              isUiHidden && viewMode === 'streetview'
+                ? "fixed inset-0 z-0 w-screen h-screen" 
+                : "flex-grow min-h-[300px] sm:min-h-[400px] md:min-h-0" 
+            )}
+          >
             {!googleMapsApiLoaded && (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
                     <MapIcon className="w-16 h-16 text-primary animate-pulse" />
