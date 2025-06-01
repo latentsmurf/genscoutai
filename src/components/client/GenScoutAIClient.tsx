@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -54,6 +54,29 @@ import type { FilmingLocation } from '@/types';
 import { sampleFilmingLocations } from '@/data/filming-locations';
 import { cn } from '@/lib/utils';
 
+const schematicMapStyles: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#f0f0f0' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#c9c9c9' }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#e0e0e0' }] },
+  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+  { featureType: 'road.local', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+  { featureType: 'transit.line', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
+  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+];
+
+
 export default function GenScoutAIClient() {
   const { toast } = useToast();
 
@@ -62,7 +85,7 @@ export default function GenScoutAIClient() {
   const [googleMapsApiLoaded, setGoogleMapsApiLoaded] = useState(false);
   const [isStreetViewReady, setIsStreetViewReady] = useState(false);
   const [searchInput, setSearchInput] = useState<string>('');
-  const [locationForStreetView, setLocationForStreetView] = useState<string>('');
+  const [locationForStreetView, setLocationForStreetView] = useState<string>(''); // Can be address or "coords:lat,lng"
   const [selectedLens, setSelectedLens] = useState<string>('50mm');
   const [timeOfDay, setTimeOfDay] = useState<number>(12);
   const [generatedTimePrompt, setGeneratedTimePrompt] = useState<string>('noon');
@@ -76,7 +99,10 @@ export default function GenScoutAIClient() {
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
   const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string} | null>(null);
   const [lastStreetViewSnapshotDataUri, setLastStreetViewSnapshotDataUri] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'map' | 'streetview'>('map');
+  
+  const [currentDisplayMode, setCurrentDisplayMode] = useState<'map' | 'streetview' | 'planner'>('map');
+  const [plannerViewType, setPlannerViewType] = useState<'satellite' | 'schematic'>('satellite');
+
   const [currentMapCenter, setCurrentMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 34.0522, lng: -118.2437 }); // Default to LA
   const [currentMapZoom, setCurrentMapZoom] = useState<number>(8);
   const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral | null>(null);
@@ -162,7 +188,7 @@ export default function GenScoutAIClient() {
             setCurrentMapCenter(newLocation);
             setMarkerPosition(newLocation);
             setCurrentMapZoom(15); 
-            setViewMode('map'); 
+            setCurrentDisplayMode('map'); 
             if (query) setSearchInput(formattedAddress); 
             fetchLocationInformation(formattedAddress, newLocation);
         } else {
@@ -191,7 +217,7 @@ export default function GenScoutAIClient() {
       setCurrentMapCenter(newLocation);
       setMarkerPosition(newLocation);
       setCurrentMapZoom(15); 
-      setViewMode('map');
+      setCurrentDisplayMode('map');
       fetchLocationInformation(placeName, newLocation);
     } else {
       handleLocationSearch(placeName); 
@@ -203,7 +229,7 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (status === 'ERROR' && message) { 
+      if (status === 'ERROR' && message) { // Only toast on actual errors, not ZERO_RESULTS
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
@@ -332,14 +358,6 @@ export default function GenScoutAIClient() {
       toast({ title: "Download Failed", description: "No image available to download.", variant: "destructive"});
     }
   }, [generatedCinematicImage, toast]);
-
-  const handleEnhanceQuality = useCallback(() => {
-    toast({
-      title: "Enhance Quality (Conceptual)",
-      description: "This feature to generate a higher resolution or enhanced quality image is planned. The current AI model (Gemini 2.0 Flash) may not directly support different quality/resolution tiers via simple parameters. A more advanced model or a different Genkit flow might be required for this in future updates.",
-      duration: 10000,
-    });
-  }, [toast]);
   
   const handleGenerate360Image = useCallback(() => {
      toast({
@@ -364,7 +382,7 @@ export default function GenScoutAIClient() {
     setCurrentMapCenter(location.coordinates);
     setMarkerPosition(location.coordinates);
     setCurrentMapZoom(15);
-    setViewMode('map');
+    setCurrentDisplayMode('map');
     fetchLocationInformation(location.locationName, location.coordinates);
     toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
   }, [fetchLocationInformation, toast]);
@@ -463,7 +481,7 @@ export default function GenScoutAIClient() {
   }, [googleMapsApiLoaded]); 
 
 
-  const processSnapshotAndGenerateAI = async (base64StreetViewImage: string, currentModificationPrompt?: string) => {
+  const processSnapshotAndGenerateAI = async (base64StreetViewImage: string, currentModificationInstruction?: string) => {
     if (isGeneratingCinematicImage) return; 
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null); 
@@ -475,7 +493,7 @@ export default function GenScoutAIClient() {
         weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
         sceneDescription: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
         shotDirection: shotDirection,
-        modificationInstruction: currentModificationPrompt || undefined,
+        modificationInstruction: currentModificationInstruction || undefined,
       };
 
       const result = await generateCinematicShot(aiInput);
@@ -797,7 +815,7 @@ export default function GenScoutAIClient() {
           !isUiHidden && "gap-4" 
         )}
       >
-          {viewMode === 'streetview' && (
+          {currentDisplayMode === 'streetview' && (
               <Button
                 variant="outline"
                 size="icon"
@@ -811,20 +829,70 @@ export default function GenScoutAIClient() {
 
           {!isUiHidden && (
             <Card>
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-lg flex items-center justify-between">
-                  Shot Configuration
+              <CardHeader className="pb-4 pt-4 px-4 flex-row items-center justify-between">
+                <CardTitle className="text-lg">View Mode</CardTitle>
+                <div className="flex gap-2">
                   <Button 
-                      variant="outline" 
+                      variant={currentDisplayMode === 'map' ? 'default' : 'outline'} 
                       size="sm" 
-                      onClick={() => setViewMode(viewMode === 'map' ? 'streetview' : 'map')}
-                      disabled={!googleMapsApiLoaded || (viewMode === 'map' && (!locationForStreetView || locationForStreetView.trim() === ''))}
-                      className="ml-auto min-w-[130px]"
+                      onClick={() => setCurrentDisplayMode('map')}
+                      disabled={!googleMapsApiLoaded}
                     >
-                      {viewMode === 'map' ? <EyeIcon className="mr-2 h-4 w-4" /> : <MapIcon className="mr-2 h-4 w-4" />}
-                      {viewMode === 'map' ? 'Street View' : 'Map View'}
+                      <MapIcon className="mr-2 h-4 w-4" /> Map
                     </Button>
-                </CardTitle>
+                     <Button 
+                      variant={currentDisplayMode === 'streetview' ? 'default' : 'outline'} 
+                      size="sm" 
+                      onClick={() => setCurrentDisplayMode('streetview')}
+                      disabled={!googleMapsApiLoaded || !locationForStreetView}
+                    >
+                      <EyeIcon className="mr-2 h-4 w-4" /> Street View
+                    </Button>
+                     <Button 
+                      variant={currentDisplayMode === 'planner' ? 'default' : 'outline'} 
+                      size="sm" 
+                      onClick={() => setCurrentDisplayMode('planner')}
+                      disabled={!googleMapsApiLoaded || !locationForStreetView}
+                    >
+                      <LayoutDashboard className="mr-2 h-4 w-4" /> Scene Planner
+                  </Button>
+                </div>
+              </CardHeader>
+             
+              {currentDisplayMode === 'planner' && (
+                 <CardContent className="p-4 pt-0 border-t">
+                  <div className="flex justify-between items-center pt-4">
+                    <Label className="text-base font-semibold">Planner Options</Label>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant={plannerViewType === 'satellite' ? 'default' : 'outline'} 
+                        size="sm" 
+                        onClick={() => setPlannerViewType('satellite')}
+                      >
+                        <Layers className="mr-2 h-4 w-4"/> Satellite
+                      </Button>
+                      <Button 
+                        variant={plannerViewType === 'schematic' ? 'default' : 'outline'} 
+                        size="sm" 
+                        onClick={() => setPlannerViewType('schematic')}
+                      >
+                        <Network className="mr-2 h-4 w-4"/> Schematic
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Use this mode to plan your shots. Annotation tools are planned for a future update.
+                    For now, use screen capture to save your layouts.
+                  </p>
+                 </CardContent>
+              )}
+            </Card>
+          )}
+
+          {!isUiHidden && currentDisplayMode === 'streetview' && (
+            <Card>
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="text-lg">Shot Configuration</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 p-4">
                 <div className="flex flex-wrap gap-4 items-start">
@@ -913,7 +981,7 @@ export default function GenScoutAIClient() {
                       size="sm"
                       className="text-sm"
                       onClick={handleSnapshot}
-                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded}
                     >
                       {isGeneratingCinematicImage && !generatedCinematicImage && lastStreetViewSnapshotDataUri ? ( 
                         <>
@@ -930,14 +998,14 @@ export default function GenScoutAIClient() {
                       size="sm"
                       className="text-sm"
                       onClick={handleGenerate360Image}
-                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded || viewMode !== 'streetview'}
+                      disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiLoaded}
                     >
                       <Orbit className="w-4 h-4 mr-2" /> Generate 360 Image
                     </Button>
                 </div>
                 {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
-                {googleMapsApiLoaded && viewMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
-                {googleMapsApiLoaded && viewMode === 'map' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
+                {googleMapsApiLoaded && currentDisplayMode === 'streetview' && !isStreetViewReady && locationForStreetView && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
+                {googleMapsApiLoaded && currentDisplayMode !== 'streetview' && locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Switch to Street View to take/generate snapshots.</p>}
                 {googleMapsApiLoaded && !locationForStreetView && <p className="text-xs text-muted-foreground mt-1">Search for a location first.</p>}
               </CardContent>
             </Card>
@@ -946,7 +1014,7 @@ export default function GenScoutAIClient() {
           <div 
             className={cn(
               "relative",
-              isUiHidden && viewMode === 'streetview'
+              isUiHidden && currentDisplayMode === 'streetview'
                 ? "fixed inset-0 z-0 w-screen h-screen" 
                 : "flex-grow min-h-[300px] sm:min-h-[400px] md:min-h-0" 
             )}
@@ -958,7 +1026,7 @@ export default function GenScoutAIClient() {
                     {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key not configured.</p>}
                 </div>
             )}
-            {googleMapsApiLoaded && viewMode === 'map' && (
+            {googleMapsApiLoaded && currentDisplayMode === 'map' && (
               <MapViewDisplay
                 apiKey={googleMapsApiKey}
                 isApiLoaded={googleMapsApiLoaded}
@@ -966,15 +1034,29 @@ export default function GenScoutAIClient() {
                 zoom={currentMapZoom}
                 markerPos={markerPosition}
                 onMapClick={handleMapClick}
+                mapTypeId="roadmap"
               />
             )}
-            {googleMapsApiLoaded && viewMode === 'streetview' && (
+            {googleMapsApiLoaded && currentDisplayMode === 'streetview' && (
               <StreetViewDisplay
                 locationToLoad={locationForStreetView}
                 apiKey={googleMapsApiKey}
                 isApiLoaded={googleMapsApiLoaded}
                 streetViewPanoramaRef={streetViewPanoramaRef}
                 onStreetViewStatusChange={handleStreetViewStatusChange}
+              />
+            )}
+            {googleMapsApiLoaded && currentDisplayMode === 'planner' && (
+              <MapViewDisplay
+                apiKey={googleMapsApiKey}
+                isApiLoaded={googleMapsApiLoaded}
+                center={currentMapCenter}
+                zoom={currentMapZoom}
+                markerPos={markerPosition}
+                onMapClick={handleMapClick}
+                mapTypeId={plannerViewType === 'satellite' ? 'satellite' : 'roadmap'}
+                customStyles={plannerViewType === 'schematic' ? schematicMapStyles : undefined}
+                enableTilt={plannerViewType === 'satellite'}
               />
             )}
           </div>
@@ -1096,4 +1178,3 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
-

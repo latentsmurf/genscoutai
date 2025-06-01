@@ -11,6 +11,9 @@ interface MapViewDisplayProps {
   zoom: number;
   markerPos: google.maps.LatLngLiteral | null;
   onMapClick: (latLng: google.maps.LatLngLiteral) => void;
+  mapTypeId?: google.maps.MapTypeId | string; // Allow string for custom map IDs if ever needed
+  customStyles?: google.maps.MapTypeStyle[];
+  enableTilt?: boolean;
 }
 
 const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
@@ -20,6 +23,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   zoom,
   markerPos,
   onMapClick,
+  mapTypeId = 'roadmap',
+  customStyles,
+  enableTilt = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -27,57 +33,67 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
 
+  // Effect for fundamental map initialization / destruction
   useEffect(() => {
     if (!apiKey && mapContainerRef.current) {
       mapContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Google Maps API Key is missing. Map cannot be displayed.</p>';
       setIsMapInitialized(false);
-      if (coverageLayerRef.current) {
-        coverageLayerRef.current.setMap(null);
-      }
+      if (mapInstanceRef.current) mapInstanceRef.current = null; // Ensure cleanup
+      if (coverageLayerRef.current) coverageLayerRef.current.setMap(null);
       return;
     }
 
-    if (isApiLoaded && mapContainerRef.current && typeof window.google !== 'undefined' && window.google.maps && !mapInstanceRef.current) {
-      try {
-        mapInstanceRef.current = new window.google.maps.Map(mapContainerRef.current, {
-          center: center,
-          zoom: zoom,
-          mapTypeControl: false,
-          streetViewControl: false, // Disable default Street View pegman
-          fullscreenControl: false,
-        });
+    if (isApiLoaded && mapContainerRef.current && typeof window.google !== 'undefined' && window.google.maps) {
+      if (!mapInstanceRef.current) { // Initialize only if not already initialized
+        try {
+          mapInstanceRef.current = new window.google.maps.Map(mapContainerRef.current, {
+            center: center,
+            zoom: zoom,
+            mapTypeId: mapTypeId,
+            styles: customStyles,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: false,
+            tilt: enableTilt ? 45 : 0,
+          });
 
-        mapInstanceRef.current.addListener('click', (mapsMouseEvent: google.maps.MapMouseEvent) => {
-          if (mapsMouseEvent.latLng) {
-            onMapClick(mapsMouseEvent.latLng.toJSON());
+          mapInstanceRef.current.addListener('click', (mapsMouseEvent: google.maps.MapMouseEvent) => {
+            if (mapsMouseEvent.latLng) {
+              onMapClick(mapsMouseEvent.latLng.toJSON());
+            }
+          });
+
+          coverageLayerRef.current = new window.google.maps.StreetViewCoverageLayer();
+          coverageLayerRef.current.setMap(mapInstanceRef.current);
+
+          setIsMapInitialized(true);
+        } catch (e: any) {
+          console.error("Error initializing Google Map:", e);
+          setIsMapInitialized(false);
+          if (mapContainerRef.current) {
+              mapContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Error initializing Google Map: ${e.message}</p>`;
           }
-        });
-
-        // Add StreetView Coverage Layer
-        coverageLayerRef.current = new window.google.maps.StreetViewCoverageLayer();
-        coverageLayerRef.current.setMap(mapInstanceRef.current);
-
-        setIsMapInitialized(true);
-      } catch (e: any) {
-        console.error("Error initializing Google Map:", e);
-        setIsMapInitialized(false);
-        if (coverageLayerRef.current) {
-          coverageLayerRef.current.setMap(null);
         }
-        if (mapContainerRef.current) {
-            mapContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Error initializing Google Map: ${e.message}</p>`;
+      } else {
+        // If map instance exists, update its properties
+        mapInstanceRef.current.setMapTypeId(mapTypeId);
+        mapInstanceRef.current.setOptions({ styles: customStyles });
+        mapInstanceRef.current.setTilt(enableTilt ? 45 : 0);
+        // Ensure coverage layer is still on the correct map instance if it re-initializes elsewhere
+        if (coverageLayerRef.current && coverageLayerRef.current.getMap() !== mapInstanceRef.current) {
+            coverageLayerRef.current.setMap(mapInstanceRef.current);
         }
       }
     } else if (!isApiLoaded && mapContainerRef.current) {
         mapContainerRef.current.innerHTML = ''; 
         setIsMapInitialized(false);
-        if (coverageLayerRef.current) {
-            coverageLayerRef.current.setMap(null);
-        }
+        if (mapInstanceRef.current) mapInstanceRef.current = null;
+        if (coverageLayerRef.current) coverageLayerRef.current.setMap(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, isApiLoaded]); // Only re-initialize map if API key or loaded status changes fundamentally
+  }, [apiKey, isApiLoaded, mapTypeId, JSON.stringify(customStyles), enableTilt]); // Re-run if styles/type/tilt change
 
+  // Effect for updating center and zoom
   useEffect(() => {
     if (mapInstanceRef.current && isApiLoaded) {
       mapInstanceRef.current.setCenter(center);
@@ -85,18 +101,15 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     }
   }, [center, zoom, isApiLoaded]);
 
+  // Effect for managing the marker
   useEffect(() => {
     if (mapInstanceRef.current && isApiLoaded && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.Marker) {
       if (markerPos) {
         if (!markerInstanceRef.current) {
-          markerInstanceRef.current = new window.google.maps.Marker({
-            position: markerPos,
-            map: mapInstanceRef.current,
-          });
-        } else {
-          markerInstanceRef.current.setPosition(markerPos);
-          markerInstanceRef.current.setMap(mapInstanceRef.current);
+          markerInstanceRef.current = new window.google.maps.Marker();
         }
+        markerInstanceRef.current.setPosition(markerPos);
+        markerInstanceRef.current.setMap(mapInstanceRef.current);
       } else {
         if (markerInstanceRef.current) {
           markerInstanceRef.current.setMap(null);
@@ -116,7 +129,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         markerInstanceRef.current.setMap(null);
         markerInstanceRef.current = null;
       }
-      // Note: mapInstanceRef.current is managed by its own lifecycle based on apiKey/isApiLoaded
+      // mapInstanceRef.current is handled by its own lifecycle based on props change now
     };
   }, []);
 
