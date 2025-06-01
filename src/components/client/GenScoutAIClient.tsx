@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Loader } from '@googlemaps/js-api-loader';
 import {
   SidebarProvider,
   Sidebar,
@@ -26,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Globe, Layers, MapPin, Orbit, ChevronDownSquare, Shuffle, Camera, FileJson, Sun, CloudRain, CloudFog, Snowflake, Bot, Search, Video, Focus, ImageIcon, Film } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -34,59 +35,153 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const StreetViewDisplay: React.FC<{ locationQuery: string; generatedImage?: string | null; overlays?: { lens: string; time: string; weather: string} }> = ({ locationQuery, generatedImage, overlays }) => {
-  const [streetViewSrc, setStreetViewSrc] = useState("https://placehold.co/800x600.png?text=Enter+Location");
-  const [isLoading, setIsLoading] = useState(false);
+interface StreetViewDisplayProps {
+  locationQuery: string;
+  generatedImage?: string | null;
+  overlays?: { lens: string; time: string; weather: string };
+  apiKey: string | null;
+  streetViewPanoramaRef: React.MutableRefObject<google.maps.StreetViewPanorama | null>;
+  streetViewContainerRef: React.RefObject<HTMLDivElement>;
+  onStreetViewStatusChange: (status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => void;
+}
+
+const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
+  locationQuery,
+  generatedImage,
+  overlays,
+  apiKey,
+  streetViewPanoramaRef,
+  streetViewContainerRef,
+  onStreetViewStatusChange,
+}) => {
+  const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
+  const [streetViewUnavailable, setStreetViewUnavailable] = useState(false);
 
   useEffect(() => {
-    if (locationQuery) {
-      setIsLoading(true);
-      // Simulate API call for street view image
-      setTimeout(() => {
-        // For demonstration, we'll just use a placeholder that reflects the query
-        // In a real app, this would fetch an actual street view image
-        setStreetViewSrc(`https://placehold.co/800x600.png?text=${encodeURIComponent(locationQuery)}`);
-        setIsLoading(false);
-      }, 1500);
-    } else {
-      setStreetViewSrc("https://placehold.co/800x600.png?text=Street+View");
+    if (generatedImage || !apiKey || !streetViewContainerRef.current) {
+      if (streetViewPanoramaRef.current) {
+         streetViewPanoramaRef.current.setVisible(false);
+      }
+      return;
     }
-  }, [locationQuery]);
+    
+    if (!locationQuery) {
+      if (streetViewPanoramaRef.current) {
+         streetViewPanoramaRef.current.setVisible(false);
+      }
+      if (streetViewContainerRef.current) {
+        streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-muted-foreground">Search for a location to see Street View.</p>';
+      }
+      setStreetViewUnavailable(false);
+      return;
+    }
 
-  const displaySrc = generatedImage || streetViewSrc;
-  const displayAlt = generatedImage ? "AI Cinematic Shot" : (locationQuery || "Street View Placeholder");
-  const dataAiHint = generatedImage ? "cinematic outdoor" : (locationQuery ? `street view ${locationQuery.substring(0,20)}` : "street view");
+    setIsLoadingStreetView(true);
+    setStreetViewUnavailable(false);
+    if (streetViewContainerRef.current) {
+       streetViewContainerRef.current.innerHTML = ''; // Clear previous messages
+    }
 
+
+    const loader = new Loader({
+      apiKey: apiKey,
+      version: 'weekly',
+      libraries: ['geocoding', 'streetView'],
+    });
+
+    loader.load().then(async (google) => {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: locationQuery }, (results, status) => {
+        setIsLoadingStreetView(false);
+        if (status === google.maps.GeocoderStatus.OK && results && results[0] && streetViewContainerRef.current) {
+          const streetViewService = new google.maps.StreetViewService();
+          streetViewService.getPanorama({ location: results[0].geometry.location, radius: 50 }, (data, svStatus) => {
+            if (svStatus === google.maps.StreetViewStatus.OK) {
+              setStreetViewUnavailable(false);
+              onStreetViewStatusChange('OK');
+              if (streetViewPanoramaRef.current) {
+                streetViewPanoramaRef.current.setPosition(results[0].geometry.location);
+                streetViewPanoramaRef.current.setVisible(true);
+              } else {
+                streetViewPanoramaRef.current = new google.maps.StreetViewPanorama(
+                  streetViewContainerRef.current!,
+                  {
+                    position: results[0].geometry.location,
+                    pov: { heading: 165, pitch: 0 },
+                    zoom: 1,
+                    visible: true,
+                    addressControl: false,
+                    linksControl: true,
+                    panControl: true,
+                    enableCloseButton: false,
+                    fullscreenControl: false,
+                    motionTracking: false,
+                    motionTrackingControl: false,
+                  }
+                );
+              }
+            } else {
+              setStreetViewUnavailable(true);
+              onStreetViewStatusChange('ZERO_RESULTS', `Street View not available for this location.`);
+              if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+              if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-muted-foreground">Street View not available for this location.</p>';
+            }
+          });
+        } else {
+          setStreetViewUnavailable(true);
+          onStreetViewStatusChange('ERROR', `Geocoding failed: ${status}`);
+          if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+          if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Could not find location: ${locationQuery}.</p>`;
+        }
+      });
+    }).catch(e => {
+      setIsLoadingStreetView(false);
+      setStreetViewUnavailable(true);
+      onStreetViewStatusChange('ERROR', `Error loading Google Maps API: ${e.message}`);
+      console.error("Error loading Google Maps API:", e);
+       if (streetViewContainerRef.current) streetViewContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Error loading Google Maps.</p>';
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationQuery, apiKey, generatedImage]); // streetViewContainerRef, streetViewPanoramaRef, onStreetViewStatusChange, toast are stable
+
+  if (generatedImage) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
+        <Image
+          key={generatedImage}
+          src={generatedImage}
+          alt="AI Cinematic Shot"
+          width={800}
+          height={600}
+          data-ai-hint="cinematic outdoor"
+          className="object-contain rounded-lg w-full h-auto max-h-[calc(100vh-12rem)]"
+          priority
+        />
+        {overlays && (
+          <>
+            <div className="absolute bottom-4 left-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm">
+              <p>GenScoutAI</p>
+              <p>Lens: {overlays.lens}</p>
+            </div>
+            <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm text-right">
+              <p>Time: {overlays.time}</p>
+              <p>Weather: {overlays.weather}</p>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+  
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-muted rounded-lg shadow-inner relative">
-      {isLoading && !generatedImage && (
+      {isLoadingStreetView && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10">
           <ImageIcon className="w-16 h-16 text-primary animate-pulse" />
           <p className="ml-2 text-foreground">Loading Street View...</p>
         </div>
       )}
-      <Image 
-        key={displaySrc} // Force re-render on src change for loading states
-        src={displaySrc} 
-        alt={displayAlt} 
-        width={800} 
-        height={600} 
-        data-ai-hint={dataAiHint} 
-        className="object-contain rounded-lg w-full h-auto max-h-[calc(100vh-12rem)]" 
-        priority={!!generatedImage}
-      />
-      {generatedImage && overlays && (
-        <>
-          <div className="absolute bottom-4 left-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm">
-            <p>GenScoutAI</p>
-            <p>Lens: {overlays.lens}</p>
-          </div>
-          <div className="absolute bottom-4 right-4 bg-black/50 text-white p-2 rounded text-xs md:text-sm text-right">
-            <p>Time: {overlays.time}</p>
-            <p>Weather: {overlays.weather}</p>
-          </div>
-        </>
-      )}
+      <div ref={streetViewContainerRef} className="w-full h-full min-h-[400px] md:min-h-[calc(100vh-12rem)] rounded-lg" />
     </div>
   );
 };
@@ -94,6 +189,11 @@ const StreetViewDisplay: React.FC<{ locationQuery: string; generatedImage?: stri
 
 export default function GenScoutAIClient() {
   const { toast } = useToast();
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null);
+
+  const streetViewContainerRef = useRef<HTMLDivElement>(null);
+  const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
+  const [isStreetViewReady, setIsStreetViewReady] = useState(false);
 
   const [locationQuery, setLocationQuery] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
@@ -103,7 +203,7 @@ export default function GenScoutAIClient() {
   const [generatedTimePrompt, setGeneratedTimePrompt] = useState<string>('noon');
   const [isLoadingTimePrompt, setIsLoadingTimePrompt] = useState<boolean>(false);
 
-  const [weatherCondition, setWeatherCondition] = useState<string>('');
+  const [weatherCondition, setWeatherCondition] = useState<string>('none');
   const [generatedWeatherPrompt, setGeneratedWeatherPrompt] = useState<string>('');
   const [isLoadingWeatherPrompt, setIsLoadingWeatherPrompt] = useState<boolean>(false);
 
@@ -114,10 +214,37 @@ export default function GenScoutAIClient() {
 
   const cameraLenses = ["16mm", "24mm", "35mm", "50mm", "85mm", "135mm"];
 
+  useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    if (apiKey && apiKey !== "YOUR_GOOGLE_MAPS_API_KEY_PLACEHOLDER") {
+      setGoogleMapsApiKey(apiKey);
+    } else {
+      console.warn("Google Maps API Key is not configured. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
+      toast({
+        title: "API Key Missing",
+        description: "Google Maps API Key is not set. Street View functionality will be limited.",
+        variant: "destructive",
+        duration: 10000,
+      });
+    }
+  }, [toast]);
+
+  const handleStreetViewStatusChange = useCallback((status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => {
+    if (status === 'OK') {
+      setIsStreetViewReady(true);
+    } else {
+      setIsStreetViewReady(false);
+      if (message) {
+        toast({ title: "Street View Info", description: message, variant: status === 'ERROR' ? "destructive" : "default" });
+      }
+    }
+  }, [toast]);
+
+
   const handleTimeOfDayChange = useCallback(async (value: number) => {
     setTimeOfDay(value);
     setIsLoadingTimePrompt(true);
-    setGeneratedCinematicImage(null); // Clear generated image when params change
+    setGeneratedCinematicImage(null); 
     try {
       const input: GenerateTimeOfDayPromptInput = { time: value };
       const result = await generateTimeOfDayPrompt(input);
@@ -132,9 +259,9 @@ export default function GenScoutAIClient() {
   }, [toast]);
 
   const handleWeatherConditionChange = useCallback(async (value: string) => {
-    setGeneratedCinematicImage(null); // Clear generated image when params change
+    setGeneratedCinematicImage(null); 
     if (!value || value === "none") {
-      setWeatherCondition('');
+      setWeatherCondition('none');
       setGeneratedWeatherPrompt('');
       return;
     }
@@ -165,32 +292,46 @@ export default function GenScoutAIClient() {
       return;
     }
     setLocationQuery(searchInput);
-    setGeneratedCinematicImage(null); // Clear previous image on new search
-    toast({ title: "Location Search", description: `Searching for: ${searchInput} (simulated).`, variant: "default" });
+    setGeneratedCinematicImage(null); 
+    // Toast for initiating search happens in StreetViewDisplay via onStreetViewStatusChange
   };
   
-  const handleSnapshot = async () => {
-    if (!locationQuery) {
-      toast({ title: "No Location", description: "Please search for a location first.", variant: "default"});
-      return;
+  const processSnapshot = async (panoId: string, pov: google.maps.StreetViewPov, zoom: number | undefined, currentApiKey: string) => {
+    const heading = pov.heading;
+    const pitch = pov.pitch;
+    let fov = 90; // Default FOV
+    if (zoom !== undefined) {
+      fov = Math.max(10, Math.min(120, 180 / Math.pow(2, zoom)));
     }
-    setIsGeneratingCinematicImage(true);
-    setGeneratedCinematicImage(null); // Clear previous
 
-    // Simulate capturing street view image data
-    // In a real app, you'd get this from the Street View component/API
-    const streetViewImageDataUri = `https://placehold.co/800x600.png?text=${encodeURIComponent(locationQuery)}`;
-    
+    const staticImageUrl = `https://maps.googleapis.com/maps/api/streetview?pano=${panoId}&size=800x600&heading=${heading}&pitch=${pitch}&fov=${fov}&key=${currentApiKey}`;
+
     try {
-      const input: GenerateCinematicShotInput = {
-        streetViewImageDataUri,
+      const response = await fetch(staticImageUrl);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Static Street View API Error Response:", errorText);
+        throw new Error(`Static Street View API request failed: ${response.status} ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      
+      const base64data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+      });
+
+      const aiInput: GenerateCinematicShotInput = {
+        streetViewImageDataUri: base64data,
         focalLength: selectedLens,
         timeOfDayToken: generatedTimePrompt || 'noon',
         weatherConditionPrompt: generatedWeatherPrompt || 'clear sky',
         sceneDescription: locationQuery,
         shotDirection: shotDirection || undefined,
       };
-      const result = await generateCinematicShot(input);
+      
+      const result = await generateCinematicShot(aiInput);
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
@@ -198,11 +339,47 @@ export default function GenScoutAIClient() {
         throw new Error("AI did not return an image.");
       }
     } catch (error) {
-      console.error("Error generating cinematic shot:", error);
+      console.error("Error processing snapshot or generating AI image:", error);
       setGeneratedCinematicImage(null);
-      toast({ title: "AI Generation Failed", description: `Could not generate cinematic shot. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
+      toast({ title: "Snapshot Failed", description: `Could not process Street View or generate AI image. ${error instanceof Error ? error.message : ''}`, variant: "destructive" });
     } finally {
       setIsGeneratingCinematicImage(false);
+    }
+  };
+
+
+  const handleSnapshot = async () => {
+    if (!isStreetViewReady || !streetViewPanoramaRef.current || !googleMapsApiKey) {
+      toast({ title: "Street View Not Ready", description: "Please ensure Street View is loaded for a location and API key is set.", variant: "default"});
+      return;
+    }
+    setIsGeneratingCinematicImage(true);
+    setGeneratedCinematicImage(null);
+
+    const panorama = streetViewPanoramaRef.current;
+    const panoData = panorama.getPanorama(); // This is StreetViewPanoramaData
+    const pov = panorama.getPov();
+    const zoom = panorama.getZoom();
+
+    if (panoData && panoData.location && panoData.location.pano) {
+        await processSnapshot(panoData.location.pano, pov, zoom, googleMapsApiKey);
+    } else {
+        // Fallback: try to get pano using current location if direct data is insufficient
+        const currentLocation = panorama.getPosition();
+        if (currentLocation) {
+            const streetViewService = new google.maps.StreetViewService();
+            streetViewService.getPanorama({ location: currentLocation, radius: 50 }, async (data, status) => {
+                if (status === google.maps.StreetViewStatus.OK && data && data.location && data.location.pano) {
+                    await processSnapshot(data.location.pano, pov, zoom, googleMapsApiKey);
+                } else {
+                    toast({ title: "Snapshot Error", description: "Could not retrieve Street View details for the current view.", variant: "destructive" });
+                    setIsGeneratingCinematicImage(false);
+                }
+            });
+        } else {
+            toast({ title: "Snapshot Error", description: "Current Street View location is invalid for snapshot.", variant: "destructive" });
+            setIsGeneratingCinematicImage(false);
+        }
     }
   };
   
@@ -242,12 +419,14 @@ export default function GenScoutAIClient() {
                       onChange={(e) => setSearchInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleLocationSearch()}
                       className="text-sm"
+                      disabled={!googleMapsApiKey}
                     />
-                    <Button onClick={handleLocationSearch} size="sm" aria-label="Search location">
+                    <Button onClick={handleLocationSearch} size="sm" aria-label="Search location" disabled={!googleMapsApiKey}>
                       <Search className="w-4 h-4" />
                     </Button>
                   </div>
                   {locationQuery && <p className="text-xs text-muted-foreground">Displaying: {locationQuery}</p>}
+                   {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location search.</p>}
                 </SidebarGroupContent>
               </SidebarGroup>
 
@@ -335,7 +514,7 @@ export default function GenScoutAIClient() {
                     size="sm" 
                     className="w-full text-sm" 
                     onClick={handleSnapshot}
-                    disabled={isGeneratingCinematicImage || !locationQuery}
+                    disabled={isGeneratingCinematicImage || !isStreetViewReady || !googleMapsApiKey}
                   >
                     {isGeneratingCinematicImage ? (
                       <>
@@ -347,6 +526,9 @@ export default function GenScoutAIClient() {
                       </>
                     )}
                   </Button>
+                   {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to take snapshots.</p>}
+                   {googleMapsApiKey && !isStreetViewReady && locationQuery && <p className="text-xs text-destructive mt-1">Street View not available or not loaded for the current location.</p>}
+
 
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -365,21 +547,26 @@ export default function GenScoutAIClient() {
       <SidebarInset className="p-2 md:p-4 flex flex-col items-center justify-center">
         {isGeneratingCinematicImage && !generatedCinematicImage && (
           <div className="w-full h-full flex items-center justify-center bg-muted rounded-lg shadow-inner">
-            <Skeleton className="w-[800px] h-[600px] max-w-full max-h-full rounded-lg" />
+            <Skeleton className="w-full h-full min-h-[400px] md:min-h-[calc(100vh-12rem)] rounded-lg" />
           </div>
         )}
-        {(!isGeneratingCinematicImage || generatedCinematicImage) && (
-          <StreetViewDisplay 
-            locationQuery={locationQuery} 
+        {/* Render StreetViewDisplay if not generating OR if generation is complete (generatedCinematicImage will be set) */}
+        {/* The StreetViewDisplay component itself handles showing the generated image or the interactive view */}
+         <StreetViewDisplay 
+            locationQuery={locationQuery}
             generatedImage={generatedCinematicImage}
             overlays={generatedCinematicImage ? {
               lens: selectedLens,
               time: generatedTimePrompt,
-              weather: weatherCondition || 'Clear'
+              weather: weatherCondition !== 'none' ? weatherCondition : 'Clear'
             } : undefined}
+            apiKey={googleMapsApiKey}
+            streetViewPanoramaRef={streetViewPanoramaRef}
+            streetViewContainerRef={streetViewContainerRef}
+            onStreetViewStatusChange={handleStreetViewStatusChange}
           />
-        )}
       </SidebarInset>
     </SidebarProvider>
   );
 }
+
