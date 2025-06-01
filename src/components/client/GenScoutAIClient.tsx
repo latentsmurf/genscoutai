@@ -36,7 +36,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, XIcon } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, XIcon, Download, Sparkles } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -392,7 +392,7 @@ export default function GenScoutAIClient() {
       setGeneratedCinematicImage(null);
       let description = `Could not process Street View or generate AI image. ${error instanceof Error ? error.message : ''}`;
       if (error instanceof Error && String(error.message).includes("403")) {
-        description = "Snapshot Failed: A 403 error often means the 'Street View Static API' is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
+        description = "A 403 error often means the 'Street View Static API' is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
       }
       toast({
           title: "Snapshot Failed",
@@ -412,7 +412,6 @@ export default function GenScoutAIClient() {
       return;
     }
     setIsGeneratingCinematicImage(true);
-    // setGeneratedCinematicImage(null); // Don't clear here, dialog will handle it
 
     const panorama = streetViewPanoramaRef.current;
     const panoId = panorama.getPano();
@@ -420,7 +419,7 @@ export default function GenScoutAIClient() {
     const zoom = panorama.getZoom();
 
 
-    if (panoId && pov && googleMapsApiKey) { // Ensure pov is also valid
+    if (panoId && pov && googleMapsApiKey) {
         await processSnapshot(panoId, pov, zoom, googleMapsApiKey);
     } else {
         const reason = !panoId ? "Could not retrieve Street View Pano ID." : !pov ? "Could not retrieve Street View Point of View." : "Google Maps API Key is missing.";
@@ -429,6 +428,30 @@ export default function GenScoutAIClient() {
         setIsGeneratingCinematicImage(false);
     }
   };
+
+  const handleDownloadImage = useCallback(() => {
+    if (generatedCinematicImage) {
+      const link = document.createElement('a');
+      link.href = generatedCinematicImage;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.download = `genscoutai-cinematic-shot-${timestamp}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Image Downloading", description: "Your cinematic shot is being downloaded."});
+    } else {
+      toast({ title: "Download Failed", description: "No image available to download.", variant: "destructive"});
+    }
+  }, [generatedCinematicImage, toast]);
+
+  const handleEnhanceQuality = useCallback(() => {
+    toast({
+      title: "Enhance Quality (Coming Soon)",
+      description: "This feature to generate a higher resolution image is planned for future updates. The current AI model may not support distinct resolution tiers.",
+      duration: 5000,
+    });
+  }, [toast]);
+
 
   const [isClient, setIsClient] = useState(false);
   useEffect(() => {
@@ -645,9 +668,19 @@ export default function GenScoutAIClient() {
               </div>
             )}
           </div>
-          <DialogFooter className="p-4 border-t">
+          <DialogFooter className="p-4 border-t flex sm:justify-between">
+            <div className="flex gap-2 mb-2 sm:mb-0">
+              <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
+                <Download className="mr-2 h-4 w-4" />
+                Download
+              </Button>
+               <Button variant="outline" onClick={handleEnhanceQuality} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Enhance Quality
+              </Button>
+            </div>
             <DialogClose asChild>
-              <Button variant="outline">Close</Button>
+              <Button variant="default">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
@@ -655,3 +688,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+

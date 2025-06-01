@@ -51,7 +51,7 @@ Base Image: Use the provided street view image as the structural and content fou
 {{media url=streetViewImageDataUri}}
 
 Key Cinematic Adjustments:
-1.  **Focal Length & Perspective**: Re-interpret the scene as if captured with a {{{focalLength}}} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective.
+1.  **Focal Length & Perspective**: Re-interpret the scene as if captured with a {{{focalLength}}} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective. Ensure the final image is 16:9 landscape regardless of lens choice.
 2.  **Time of Day & Lighting**: The ambiance, lighting, and shadows must accurately reflect '{{{timeOfDayToken}}}'.
 3.  **Weather Conditions**: The scene must incorporate the specified weather: '{{{weatherConditionPrompt}}}'.
 4.  **Shot Framing**: Adhere to the specified shot direction: '{{{shotDirection}}}'.
@@ -79,7 +79,7 @@ const generateCinematicShotFlow = ai.defineFlow(
     let textPrompt = `Objective: Create a high-quality, cinematic photograph in 16:9 landscape aspect ratio.
 Base Image: Use the provided street view image as the structural and content foundation.
 Key Cinematic Adjustments:
-1. Focal Length & Perspective: Re-interpret the scene as if captured with a ${input.focalLength} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective.
+1. Focal Length & Perspective: Re-interpret the scene as if captured with a ${input.focalLength} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective. IMPORTANT: The final image output must always be 16:9 landscape, regardless of the chosen focal length.
 2. Time of Day & Lighting: The ambiance, lighting, and shadows must accurately reflect '${input.timeOfDayToken}'.
 3. Weather Conditions: The scene must incorporate the specified weather: '${input.weatherConditionPrompt}'.
 4. Shot Framing: Adhere to the specified shot direction: '${input.shotDirection}'.
@@ -132,3 +132,4 @@ Generate the reimagined cinematic shot based on these precise instructions.
     }
   }
 );
+
