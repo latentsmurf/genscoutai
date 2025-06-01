@@ -6,7 +6,7 @@ import { MapPin } from 'lucide-react';
 
 interface MapViewDisplayProps {
   apiKey: string | null;
-  isApiLoaded: boolean; // New prop
+  isApiLoaded: boolean;
   center: google.maps.LatLngLiteral;
   zoom: number;
   markerPos: google.maps.LatLngLiteral | null;
@@ -15,7 +15,7 @@ interface MapViewDisplayProps {
 
 const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   apiKey,
-  isApiLoaded, // Use this prop
+  isApiLoaded,
   center,
   zoom,
   markerPos,
@@ -24,12 +24,16 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerInstanceRef = useRef<google.maps.Marker | null>(null);
+  const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
 
   useEffect(() => {
     if (!apiKey && mapContainerRef.current) {
       mapContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Google Maps API Key is missing. Map cannot be displayed.</p>';
       setIsMapInitialized(false);
+      if (coverageLayerRef.current) {
+        coverageLayerRef.current.setMap(null);
+      }
       return;
     }
 
@@ -39,7 +43,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
           center: center,
           zoom: zoom,
           mapTypeControl: false,
-          streetViewControl: false,
+          streetViewControl: false, // Disable default Street View pegman
           fullscreenControl: false,
         });
 
@@ -48,21 +52,31 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
             onMapClick(mapsMouseEvent.latLng.toJSON());
           }
         });
+
+        // Add StreetView Coverage Layer
+        coverageLayerRef.current = new window.google.maps.StreetViewCoverageLayer();
+        coverageLayerRef.current.setMap(mapInstanceRef.current);
+
         setIsMapInitialized(true);
       } catch (e: any) {
         console.error("Error initializing Google Map:", e);
         setIsMapInitialized(false);
+        if (coverageLayerRef.current) {
+          coverageLayerRef.current.setMap(null);
+        }
         if (mapContainerRef.current) {
             mapContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Error initializing Google Map: ${e.message}</p>`;
         }
       }
     } else if (!isApiLoaded && mapContainerRef.current) {
-        // Clear map if API is not loaded (e.g. during re-renders before API load)
         mapContainerRef.current.innerHTML = ''; 
         setIsMapInitialized(false);
+        if (coverageLayerRef.current) {
+            coverageLayerRef.current.setMap(null);
+        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, isApiLoaded, center, zoom]); // center, zoom for initial setup if map instance is not present
+  }, [apiKey, isApiLoaded]); // Only re-initialize map if API key or loaded status changes fundamentally
 
   useEffect(() => {
     if (mapInstanceRef.current && isApiLoaded) {
@@ -90,6 +104,21 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
       }
     }
   }, [markerPos, isApiLoaded]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (coverageLayerRef.current) {
+        coverageLayerRef.current.setMap(null);
+        coverageLayerRef.current = null;
+      }
+      if (markerInstanceRef.current) {
+        markerInstanceRef.current.setMap(null);
+        markerInstanceRef.current = null;
+      }
+      // Note: mapInstanceRef.current is managed by its own lifecycle based on apiKey/isApiLoaded
+    };
+  }, []);
 
   return (
     <div className="w-full h-full relative rounded-lg shadow-inner bg-muted">
