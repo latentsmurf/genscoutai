@@ -40,13 +40,12 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
-// Removed: import { reframeImage, type ReframeImageInput } from '@/ai/flows/reframe-image-flow';
-// Removed: import { applyFluxFilter, type ApplyFluxFilterInput } from '@/ai/flows/apply-flux-filter-flow';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -83,8 +82,6 @@ const ESTIMATED_COSTS = {
   STREET_VIEW_SNAPSHOT: 0.007,
   GEMINI_TEXT_PROMPT: 0.001,
   GEMINI_IMAGE_GENERATION: 0.02,
-  // REPLICATE_REFRAME: 0.011, // Removed
-  // REPLICATE_FLUX_FILTER: 0.0385, // Removed
 };
 
 interface SessionCosts {
@@ -92,8 +89,6 @@ interface SessionCosts {
   streetViewSnapshots: number;
   geminiTextGenerations: number;
   geminiImageGenerations: number;
-  // replicateReframes: number; // Removed
-  // replicateFluxFilters: number; // Removed
   totalEstimatedCost: number;
 }
 
@@ -102,8 +97,6 @@ const initialSessionCosts: SessionCosts = {
   streetViewSnapshots: 0,
   geminiTextGenerations: 0,
   geminiImageGenerations: 0,
-  // replicateReframes: 0, // Removed
-  // replicateFluxFilters: 0, // Removed
   totalEstimatedCost: 0,
 };
 
@@ -136,15 +129,9 @@ export default function GenScoutAIClient() {
   const [dialogGeneratedWeatherPrompt, setDialogGeneratedWeatherPrompt] = useState<string>('');
   const [isLoadingDialogWeatherPrompt, setIsLoadingDialogWeatherPrompt] = useState<boolean>(false);
   const [dialogShotDirection, setDialogShotDirection] = useState<string>('eye-level default');
-  // const [dialogTargetAspectRatio, setDialogTargetAspectRatio] = useState<string>("16:9"); // Removed
-  // const [fluxPrompt, setFluxPrompt] = useState<string>(''); // Removed
-  // const [activeDialogTab, setActiveDialogTab] = useState<string>("refine-gemini"); // Removed
-
 
   const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
-  // const [isReframingImage, setIsReframingImage] = useState<boolean>(false); // Removed
-  // const [isApplyingFluxFilter, setIsApplyingFluxFilter] = useState<boolean>(false); // Removed
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
   const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string} | null>(null);
   const [lastStreetViewSnapshotDataUri, setLastStreetViewSnapshotDataUri] = useState<string | null>(null);
@@ -181,13 +168,6 @@ export default function GenScoutAIClient() {
     { value: 'bird-s eye view', label: "Bird's-eye View (from street level)" },
   ];
   const cameraLenses = ["16mm", "24mm", "35mm", "50mm", "85mm", "135mm"];
-  // const aspectRatioOptions = [ // Removed
-  //   { value: "16:9", label: "16:9 (Widescreen)" },
-  //   { value: "9:16", label: "9:16 (Portrait)" },
-  //   { value: "1:1", label: "1:1 (Square)" },
-  //   { value: "4:3", label: "4:3 (Classic TV)" },
-  //   { value: "3:2", label: "3:2 (Photography)" },
-  // ];
 
   const filteredFilmingLocations = sampleFilmingLocations.filter(loc => {
     const searchTermLower = filmingLocationSearchTerm.toLowerCase();
@@ -743,7 +723,6 @@ export default function GenScoutAIClient() {
 
       setLastStreetViewSnapshotDataUri(base64data);
       setModificationPrompt("");
-      // setFluxPrompt(""); // Removed
 
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
@@ -751,9 +730,6 @@ export default function GenScoutAIClient() {
       setDialogWeatherCondition(weatherCondition);
       setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
       setDialogShotDirection(shotDirection);
-      // setDialogTargetAspectRatio("16:9"); // Removed
-      // setActiveDialogTab("refine-gemini"); // Removed
-
 
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
@@ -815,9 +791,6 @@ export default function GenScoutAIClient() {
     });
   };
 
-  // const handleReframeImage = async () => { ... }; // Removed
-  // const handleApplyFluxFilter = async () => { ... }; // Removed
-
 
   if (!isClient) {
     return (
@@ -827,7 +800,7 @@ export default function GenScoutAIClient() {
     );
   }
 
-  const anyOperationInProgress = isGeneratingCinematicImage; // Simplified
+  const anyOperationInProgress = isGeneratingCinematicImage;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -1012,20 +985,12 @@ export default function GenScoutAIClient() {
                                       <li>Vertex AI (hosting Gemini models for text and image generation via Genkit).</li>
                                   </ul>
                               </li>
-                              {/* Removed Replicate mention
-                              <li><strong>Replicate:</strong> For image reframing (e.g., `luma/reframe-image` model) and artistic filters (e.g., `black-forest-labs/flux-kontext-pro` model).</li>
-                              */}
                           </ul>
                           <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your respective cloud provider dashboards:</p>
                           <ul className="list-disc pl-4 space-y-0.5">
                               <li>
                                   Google Cloud Console: <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">console.cloud.google.com/billing</a>
                               </li>
-                              {/* Removed Replicate mention
-                              <li>
-                                  Replicate Dashboard: <a href="https://replicate.com/dashboard/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">replicate.com/dashboard/billing</a>
-                              </li>
-                              */}
                           </ul>
                           <p className="mt-1.5">Estimated pricing can be found at:</p>
                            <ul className="list-disc pl-4 space-y-0.5">
@@ -1035,15 +1000,7 @@ export default function GenScoutAIClient() {
                               <li>
                               Vertex AI (Gemini): <a href="https://cloud.google.com/vertex-ai/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/vertex-ai/pricing</a>
                               </li>
-                               {/* Removed Replicate mention
-                               <li>
-                              Replicate Models: Pricing varies per model. Check the specific model page on Replicate.com.
-                              </li>
-                              */}
                           </ul>
-                           {/* Removed Replicate mention
-                           <p className="mt-1.5 text-xs italic">Ensure `REPLICATE_API_TOKEN` is set in your environment for Replicate features.</p>
-                           */}
                       </AlertDescription>
                   </Alert>
                   <Card className="mt-4 bg-background/50">
@@ -1061,10 +1018,6 @@ export default function GenScoutAIClient() {
                       <div className="flex justify-between"><span>Street View Static API:</span> <span>{sessionCosts.streetViewSnapshots}</span></div>
                       <div className="flex justify-between"><span>Gemini Text Generations:</span> <span>{sessionCosts.geminiTextGenerations}</span></div>
                       <div className="flex justify-between"><span>Gemini Image Generations:</span> <span>{sessionCosts.geminiImageGenerations}</span></div>
-                      {/* Removed Replicate cost lines
-                      <div className="flex justify-between"><span>Replicate Reframes:</span> <span>{sessionCosts.replicateReframes}</span></div>
-                      <div className="flex justify-between"><span>Replicate Flux Filters:</span> <span>{sessionCosts.replicateFluxFilters}</span></div>
-                      */}
                       <Separator className="my-2" />
                       <div className="flex justify-between font-semibold text-sm">
                         <span>Total Estimated:</span>
@@ -1432,7 +1385,7 @@ export default function GenScoutAIClient() {
                     </div>
                 )}
 
-                <div className="mt-4 space-y-4 pt-4 border-t"> {/* Removed Tabs */}
+                <div className="mt-4 space-y-4 pt-4 border-t">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
