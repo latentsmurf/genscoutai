@@ -568,9 +568,8 @@ export default function GenScoutAIClient() {
     let finalTimeOfDayToken: string;
     let finalWeatherConditionPrompt: string;
 
-    const currentIsDialog = isGeneratedImageDialogOpen; // Capture if dialog is open AT THIS MOMENT
+    const currentIsDialog = isGeneratedImageDialogOpen;
   
-    // Fetch time of day prompt
     if (currentIsDialog) setIsLoadingDialogTimePrompt(true); else setIsLoadingTimePrompt(true);
     try {
       const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
@@ -578,13 +577,12 @@ export default function GenScoutAIClient() {
       if (currentIsDialog) setDialogGeneratedTimePrompt(finalTimeOfDayToken); else setGeneratedTimePrompt(finalTimeOfDayToken);
     } catch (e) {
       console.error("Error fetching time prompt in process:", e);
-      finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night"; // Simple fallback
+      finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night"; 
       toast({ title: "AI Error", description: "Failed to get time-of-day token, using simple fallback.", variant: "destructive" });
     } finally {
       if (currentIsDialog) setIsLoadingDialogTimePrompt(false); else setIsLoadingTimePrompt(false);
     }
   
-    // Fetch weather condition prompt
     if (options.weatherConditionValue !== 'none') {
       if (currentIsDialog) setIsLoadingDialogWeatherPrompt(true); else setIsLoadingWeatherPrompt(true);
       try {
@@ -593,8 +591,8 @@ export default function GenScoutAIClient() {
         if (currentIsDialog) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt); else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
       } catch (e) {
         console.error("Error fetching weather prompt in process:", e);
-        finalWeatherConditionPrompt = "clear sky"; // Simple fallback
-        toast({ title: "AI Error", description: "Failed to get weather prompt, using 'clear sky'.", variant: "destructive" });
+        finalWeatherConditionPrompt = ""; 
+        toast({ title: "AI Error", description: "Failed to get weather prompt, using empty.", variant: "destructive" });
       } finally {
         if (currentIsDialog) setIsLoadingDialogWeatherPrompt(false); else setIsLoadingWeatherPrompt(false);
       }
@@ -620,11 +618,11 @@ export default function GenScoutAIClient() {
             lens: options.lens,
             time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
-            aspectRatio: "16:9",
+            aspectRatio: "16:9", // Initial generation is always 16:9
             filter: undefined, 
         });
         setDialogTargetAspectRatio("16:9"); 
-        setActiveDialogTab("refine-gemini"); // Reset to first tab
+        setActiveDialogTab("refine-gemini"); 
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
       } else {
@@ -699,16 +697,16 @@ export default function GenScoutAIClient() {
       setModificationPrompt(""); 
       setFluxPrompt("");
 
-
+      // Initialize dialog controls with main UI values
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
-      // Let processSnapshotAndGenerateAI fetch fresh prompts
+      // Let processSnapshotAndGenerateAI fetch fresh prompts for the dialog initially too
       setDialogWeatherCondition(weatherCondition);
       setDialogShotDirection(shotDirection);
-      setDialogTargetAspectRatio("16:9");
-      setActiveDialogTab("refine-gemini");
+      setDialogTargetAspectRatio("16:9"); // Default for new snapshots
+      setActiveDialogTab("refine-gemini"); // Reset to first tab
 
-
+      // Process snapshot using main UI settings
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
         timeOfDayValue: timeOfDay,
@@ -792,7 +790,7 @@ export default function GenScoutAIClient() {
         setSnapshotOverlays(prev => ({
           ...prev!, 
           aspectRatio: dialogTargetAspectRatio,
-          filter: prev?.filter, // Preserve existing filter if any
+          filter: prev?.filter, 
         }));
         toast({ title: "Image Reframed!", description: `Successfully reframed to ${dialogTargetAspectRatio}.`, variant: "default" });
       } else {
@@ -1170,7 +1168,7 @@ export default function GenScoutAIClient() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements like cameras, trucks, talent holding) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
+                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
                   </p>
                  </CardContent>
               )}
@@ -1348,9 +1346,9 @@ export default function GenScoutAIClient() {
       </SidebarInset>
 
       <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
-          if (anyOperationInProgress && !open) return; // Prevent closing if an operation is in progress
+          if (anyOperationInProgress && !open) return; 
           setIsGeneratedImageDialogOpen(open);
-          if (!open) setActiveDialogTab("refine-gemini"); // Reset tab on close
+          if (!open) setActiveDialogTab("refine-gemini"); 
       }}>
         <DialogContent className="max-w-3xl w-full p-0">
           <DialogHeader className="p-4 border-b">
@@ -1524,12 +1522,12 @@ export default function GenScoutAIClient() {
                         disabled={anyOperationInProgress}
                         />
                         <p className="text-xs text-muted-foreground">
-                        Note: Modifies the original scene with these text instructions & current parameters.
+                        Note: Modifies the original scene with these text instructions & current parameters. Character/prop uploads not supported by this model.
                         </p>
                     </div>
                     <div className="flex gap-2 flex-wrap pt-2">
                         <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
-                          <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
+                          <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
                           Regenerate (16:9)
                         </Button>
                         <Button 
@@ -1537,7 +1535,7 @@ export default function GenScoutAIClient() {
                           onClick={handleModifyAndRegenerateFromDialog} 
                           disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
                         >
-                          <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
+                          <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
                           Modify & Regenerate (16:9)
                         </Button>
                     </div>
@@ -1594,7 +1592,6 @@ export default function GenScoutAIClient() {
           </ScrollArea>
           <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between">
             <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap">
-                {/* Common buttons can go here if needed, or keep them tab-specific */}
                 <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
                   <Download className="mr-2 h-4 w-4" />
                   Download
@@ -1613,4 +1610,3 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
-
