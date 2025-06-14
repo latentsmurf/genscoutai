@@ -45,7 +45,7 @@ const applyFluxFilterFlow = ai.defineFlow(
   },
   async ({ inputImageDataUri, prompt, outputFormat }) => {
     if (!process.env.REPLICATE_API_TOKEN) {
-      console.error('REPLICATE_API_TOKEN is not set.');
+      console.error('REPLICATE_API_TOKEN is not set in environment variables. Cannot call Replicate API.');
       return { outputImageUrl: null };
     }
 
@@ -53,34 +53,42 @@ const applyFluxFilterFlow = ai.defineFlow(
       auth: process.env.REPLICATE_API_TOKEN,
     });
 
+    const replicateInput = {
+      input_image: inputImageDataUri,
+      prompt: prompt,
+      output_format: outputFormat,
+    };
+    
+    console.log('Attempting to call Replicate (Flux) with input:', JSON.stringify(replicateInput, null, 2));
+
     try {
-      const replicateInput = {
-        input_image: inputImageDataUri, // Replicate client handles data URIs and URLs for image_url types
-        prompt: prompt,
-        output_format: outputFormat,
-      };
-      
       // Model: black-forest-labs/flux-kontext-pro
       // Pinned to version: 0f3f6a2201096092169469b73228e50a229728f8f818e36430ae6f6b25022a2c
       const output = (await replicate.run('black-forest-labs/flux-kontext-pro:0f3f6a2201096092169469b73228e50a229728f8f818e36430ae6f6b25022a2c', {
         input: replicateInput,
-      })) as string[] | string | null; // Model can return array of URLs or single URL
+      })) as string[] | string | null;
+
+      console.log('Raw output from Replicate (Flux):', JSON.stringify(output, null, 2));
 
       let imageUrl: string | null = null;
-      if (Array.isArray(output) && output.length > 0) {
-        imageUrl = output[0]; // Take the first image if an array is returned
+      if (Array.isArray(output) && output.length > 0 && typeof output[0] === 'string') {
+        imageUrl = output[0]; // Take the first image if an array is returned and it's a string
       } else if (typeof output === 'string') {
         imageUrl = output;
       }
 
       if (imageUrl) {
+        console.log('Successfully extracted image URL from Replicate (Flux):', imageUrl);
         return { outputImageUrl: imageUrl };
       } else {
-        console.error('Replicate (Flux) did not return a valid image URL. Output:', output);
+        console.error('Replicate (Flux) returned output, but it was not in the expected format or was empty. Processed Output:', imageUrl, 'Raw Output:', output);
         return { outputImageUrl: null };
       }
-    } catch (error) {
-      console.error('Error calling Replicate API for Flux filter:', error);
+    } catch (error: any) {
+      console.error('Error calling Replicate API for Flux filter. Details:', error.message || error);
+      if (error.response && error.response.data) {
+        console.error('Replicate API Error Response Data:', JSON.stringify(error.response.data, null, 2));
+      }
       return { outputImageUrl: null };
     }
   }
