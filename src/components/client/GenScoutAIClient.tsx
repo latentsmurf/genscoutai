@@ -41,7 +41,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2 } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -150,6 +150,9 @@ export default function GenScoutAIClient() {
   const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
   const [modificationPrompt, setModificationPrompt] = useState<string>("");
   const [sessionCosts, setSessionCosts] = useState<SessionCosts>(initialSessionCosts);
+
+  const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
+  const [isGeneratingVariations, setIsGeneratingVariations] = useState<boolean>(false);
 
 
   // Refs
@@ -263,7 +266,7 @@ export default function GenScoutAIClient() {
     setSearchInput(placeName);
     setLocationForStreetView(placeName);
     if (placeGeometry) {
-      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); // Assume autocomplete counts as a geocode/places lookup
+      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); 
       const newLocation = placeGeometry.toJSON();
       setCurrentMapCenter(newLocation);
       setMarkerPosition(newLocation);
@@ -378,7 +381,7 @@ export default function GenScoutAIClient() {
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
-      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); // Reverse geocoding
+      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); 
       let locationNameForInfo = coordString;
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
         locationNameForInfo = results[0].formatted_address || coordString;
@@ -591,6 +594,7 @@ export default function GenScoutAIClient() {
     if (isGeneratingCinematicImage) return;
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null);
+    setMoodBoardImages([]); // Clear variations for new main image
 
     let finalTimeOfDayToken: string;
     let finalWeatherConditionPrompt: string;
@@ -730,6 +734,7 @@ export default function GenScoutAIClient() {
       setDialogWeatherCondition(weatherCondition);
       setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
       setDialogShotDirection(shotDirection);
+      setMoodBoardImages([]); // Clear previous variations for a new snapshot
 
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
@@ -757,7 +762,7 @@ export default function GenScoutAIClient() {
       toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
       return;
     }
-    if (isGeneratingCinematicImage) return;
+    if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
@@ -778,7 +783,7 @@ export default function GenScoutAIClient() {
       toast({ title: "Modification Empty", description: "Please enter a modification instruction.", variant: "default" });
       return;
     }
-    if (isGeneratingCinematicImage) return;
+    if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
     toast({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings...", variant: "default" });
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
@@ -791,6 +796,64 @@ export default function GenScoutAIClient() {
     });
   };
 
+  const handleGenerateSceneVariations = async () => {
+    if (!lastStreetViewSnapshotDataUri) {
+      toast({ title: "Error", description: "No base Street View image available for variations.", variant: "destructive" });
+      return;
+    }
+    if (isGeneratingVariations || isGeneratingCinematicImage) return;
+
+    setIsGeneratingVariations(true);
+    setMoodBoardImages([]); 
+    toast({ title: "Generating Variations", description: "AI is creating scene variations...", variant: "default" });
+
+    const variationPrompts = [
+      { shotDirection: "a slightly different camera angle of the current view, perhaps panned left or right slightly", modificationInstruction: "Show a nuanced variation of the primary scene." },
+      { shotDirection: "a slightly closer shot composition, focusing on the main subject or area of interest", modificationInstruction: "Offer a tighter perspective." },
+      { shotDirection: "a wider perspective of the current scene, showing more of the surroundings", modificationInstruction: "Provide more context with a broader view." },
+    ];
+
+    const generatedVariations: string[] = [];
+
+    for (let i = 0; i < variationPrompts.length; i++) {
+      try {
+        const variationInput: GenerateCinematicShotInput = {
+          streetViewImageDataUri: lastStreetViewSnapshotDataUri,
+          focalLength: dialogSelectedLens, // Use dialog's current lens
+          timeOfDayToken: dialogGeneratedTimePrompt, 
+          weatherConditionPrompt: dialogGeneratedWeatherPrompt, 
+          sceneDescription: locationForStreetView.startsWith('coords:') ? `Custom coordinates - Variation ${i+1}` : `${locationForStreetView} - Variation ${i+1}`,
+          shotDirection: variationPrompts[i].shotDirection,
+          modificationInstruction: variationPrompts[i].modificationInstruction,
+        };
+
+        const result = await generateCinematicShot(variationInput);
+        updateSessionCost('geminiImageGenerations', ESTIMATED_COSTS.GEMINI_IMAGE_GENERATION);
+
+        if (result.generatedImageDataUri) {
+          generatedVariations.push(result.generatedImageDataUri);
+          setMoodBoardImages(prev => [...prev, result.generatedImageDataUri!]); // Update incrementally
+        } else {
+          console.warn(`Variation ${i + 1} did not return an image.`);
+        }
+      } catch (error) {
+        console.error(`Error generating variation ${i + 1}:`, error);
+        toast({
+          title: `Variation ${i + 1} Failed`,
+          description: `Could not generate one of the AI image variations. ${error instanceof Error ? error.message : String(error)}`,
+          variant: "destructive",
+        });
+      }
+    }
+
+    if (generatedVariations.length > 0) {
+      toast({ title: "Variations Generated", description: `${generatedVariations.length} scene variations created.`, variant: "default" });
+    } else if (generatedVariations.length === 0 && variationPrompts.length > 0) {
+       toast({ title: "No Variations Generated", description: "AI could not produce any scene variations this time.", variant: "default" });
+    }
+    setIsGeneratingVariations(false);
+  };
+
 
   if (!isClient) {
     return (
@@ -800,7 +863,7 @@ export default function GenScoutAIClient() {
     );
   }
 
-  const anyOperationInProgress = isGeneratingCinematicImage;
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -1236,7 +1299,7 @@ export default function GenScoutAIClient() {
                     >
                       {isGeneratingCinematicImage && !generatedCinematicImage && lastStreetViewSnapshotDataUri ? (
                         <>
-                          <ImageIcon className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
                         </>
                       ) : (
                         <>
@@ -1311,8 +1374,9 @@ export default function GenScoutAIClient() {
       </SidebarInset>
 
       <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
-          if (isGeneratingCinematicImage && !open) return;
+          if (anyOperationInProgress && !open) return;
           setIsGeneratedImageDialogOpen(open);
+          if (!open) setMoodBoardImages([]); // Clear variations when dialog closes
       }}>
         <DialogContent className="max-w-3xl w-full p-0">
           <DialogHeader className="p-4 border-b">
@@ -1344,7 +1408,7 @@ export default function GenScoutAIClient() {
                             unoptimized={generatedCinematicImage.startsWith('http')}
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
-                            <ImageIcon className="w-12 h-12 text-white animate-pulse" />
+                            <Loader2 className="w-12 h-12 text-white animate-spin" />
                             <p className="ml-2 text-white">
                               Applying modifications...
                             </p>
@@ -1495,10 +1559,53 @@ export default function GenScoutAIClient() {
                         </Button>
                     </div>
                 </div>
+                
+                {moodBoardImages.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <h4 className="text-md font-semibold mb-3">Scene Variations:</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {moodBoardImages.map((src, index) => (
+                        <div key={index} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
+                          <Image
+                            src={src}
+                            alt={`Scene Variation ${index + 1}`}
+                            layout="fill"
+                            objectFit="cover"
+                            className="rounded-lg"
+                            unoptimized={src.startsWith('http')}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {isGeneratingVariations && moodBoardImages.length === 0 && ( 
+                    <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-md font-semibold mb-3">Generating Scene Variations...</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {[...Array(3)].map((_, index) => (
+                                <Skeleton key={index} className="w-full aspect-video rounded-lg" />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
             </div>
           </ScrollArea>
-          <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between">
-            <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap">
+          <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between items-center">
+            <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap justify-center sm:justify-start">
+                <Button
+                  variant="outline"
+                  onClick={handleGenerateSceneVariations}
+                  disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}
+                  className="w-full sm:w-auto"
+                >
+                  {isGeneratingVariations ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Variations...</>
+                  ) : (
+                    <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
+                  )}
+                </Button>
                 <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
                   <Download className="mr-2 h-4 w-4" />
                   Download
@@ -1509,7 +1616,7 @@ export default function GenScoutAIClient() {
                 </Button>
             </div>
             <DialogClose asChild>
-                <Button variant="secondary" disabled={anyOperationInProgress}>Close</Button>
+                <Button variant="secondary" disabled={anyOperationInProgress} className="w-full sm:w-auto mt-2 sm:mt-0">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
