@@ -86,7 +86,8 @@ export default function GenScoutAIClient() {
   const [googleMapsApiLoaded, setGoogleMapsApiLoaded] = useState(false);
   const [isStreetViewReady, setIsStreetViewReady] = useState(false);
   const [searchInput, setSearchInput] = useState<string>('');
-  const [locationForStreetView, setLocationForStreetView] = useState<string>(''); // Can be address or "coords:lat,lng"
+  const [locationForStreetView, setLocationForStreetView] = useState<string>(''); 
+  // Main UI controls
   const [selectedLens, setSelectedLens] = useState<string>('50mm');
   const [timeOfDay, setTimeOfDay] = useState<number>(12);
   const [generatedTimePrompt, setGeneratedTimePrompt] = useState<string>('noon');
@@ -95,6 +96,17 @@ export default function GenScoutAIClient() {
   const [generatedWeatherPrompt, setGeneratedWeatherPrompt] = useState<string>('');
   const [isLoadingWeatherPrompt, setIsLoadingWeatherPrompt] = useState<boolean>(false);
   const [shotDirection, setShotDirection] = useState<string>('eye-level default');
+  
+  // Dialog UI controls state
+  const [dialogSelectedLens, setDialogSelectedLens] = useState<string>('50mm');
+  const [dialogTimeOfDay, setDialogTimeOfDay] = useState<number>(12);
+  const [dialogGeneratedTimePrompt, setDialogGeneratedTimePrompt] = useState<string>('noon');
+  const [isLoadingDialogTimePrompt, setIsLoadingDialogTimePrompt] = useState<boolean>(false);
+  const [dialogWeatherCondition, setDialogWeatherCondition] = useState<string>('none');
+  const [dialogGeneratedWeatherPrompt, setDialogGeneratedWeatherPrompt] = useState<string>('');
+  const [isLoadingDialogWeatherPrompt, setIsLoadingDialogWeatherPrompt] = useState<boolean>(false);
+  const [dialogShotDirection, setDialogShotDirection] = useState<string>('eye-level default');
+
   const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
@@ -104,7 +116,7 @@ export default function GenScoutAIClient() {
   const [currentDisplayMode, setCurrentDisplayMode] = useState<'map' | 'streetview' | 'planner'>('map');
   const [plannerViewType, setPlannerViewType] = useState<'satellite' | 'schematic'>('satellite');
 
-  const [currentMapCenter, setCurrentMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 34.0522, lng: -118.2437 }); // Default to LA
+  const [currentMapCenter, setCurrentMapCenter] = useState<google.maps.LatLngLiteral>({ lat: 34.0522, lng: -118.2437 }); 
   const [currentMapZoom, setCurrentMapZoom] = useState<number>(8);
   const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -230,48 +242,88 @@ export default function GenScoutAIClient() {
       setIsStreetViewReady(true);
     } else {
       setIsStreetViewReady(false);
-      if (status === 'ERROR' && message) { // Only toast for actual errors, not ZERO_RESULTS
+      if (status === 'ERROR' && message) { 
         toast({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
   }, [toast]);
 
-  const handleTimeOfDayChange = useCallback(async (value: number) => {
-    setTimeOfDay(value);
-    setIsLoadingTimePrompt(true);
+  const handleTimeOfDayChange = useCallback(async (value: number, isDialogControl: boolean = false) => {
+    if (isDialogControl) {
+      setDialogTimeOfDay(value);
+      setIsLoadingDialogTimePrompt(true);
+    } else {
+      setTimeOfDay(value);
+      setIsLoadingTimePrompt(true);
+    }
     try {
       const input: GenerateTimeOfDayPromptInput = { time: value };
       const result = await generateTimeOfDayPrompt(input);
-      setGeneratedTimePrompt(result.promptToken);
+      if (isDialogControl) {
+        setDialogGeneratedTimePrompt(result.promptToken);
+      } else {
+        setGeneratedTimePrompt(result.promptToken);
+      }
     } catch (error) {
       console.error("Error generating time of day prompt:", error);
-      setGeneratedTimePrompt('Error'); // Keep UI showing error if this specific call fails
-      toast({ title: "AI Error", description: "Failed to generate time-of-day token for display.", variant: "destructive" });
+      if (isDialogControl) {
+        setDialogGeneratedTimePrompt('Error');
+      } else {
+        setGeneratedTimePrompt('Error');
+      }
+      toast({ title: "AI Error", description: "Failed to generate time-of-day token.", variant: "destructive" });
     } finally {
-      setIsLoadingTimePrompt(false);
+      if (isDialogControl) {
+        setIsLoadingDialogTimePrompt(false);
+      } else {
+        setIsLoadingTimePrompt(false);
+      }
     }
   }, [toast]);
 
-  const handleWeatherConditionChange = useCallback(async (value: string) => {
+  const handleWeatherConditionChange = useCallback(async (value: string, isDialogControl: boolean = false) => {
     if (!value || value === "none") {
-      setWeatherCondition('none');
-      setGeneratedWeatherPrompt('');
+      if (isDialogControl) {
+        setDialogWeatherCondition('none');
+        setDialogGeneratedWeatherPrompt('');
+      } else {
+        setWeatherCondition('none');
+        setGeneratedWeatherPrompt('');
+      }
       return;
     }
-    setWeatherCondition(value);
-    setIsLoadingWeatherPrompt(true);
+    if (isDialogControl) {
+      setDialogWeatherCondition(value);
+      setIsLoadingDialogWeatherPrompt(true);
+    } else {
+      setWeatherCondition(value);
+      setIsLoadingWeatherPrompt(true);
+    }
     try {
       const input: GenerateWeatherConditionInput = { weatherCondition: value };
       const result = await generateWeatherConditionPrompt(input);
-      setGeneratedWeatherPrompt(result.prompt);
+      if (isDialogControl) {
+        setDialogGeneratedWeatherPrompt(result.prompt);
+      } else {
+        setGeneratedWeatherPrompt(result.prompt);
+      }
     } catch (error) {
       console.error("Error generating weather condition prompt:", error);
-      setGeneratedWeatherPrompt('Error'); // Keep UI showing error
-      toast({ title: "AI Error", description: "Failed to generate weather prompt for display.", variant: "destructive" });
+      if (isDialogControl) {
+        setDialogGeneratedWeatherPrompt('Error');
+      } else {
+        setGeneratedWeatherPrompt('Error');
+      }
+      toast({ title: "AI Error", description: "Failed to generate weather prompt.", variant: "destructive" });
     } finally {
-      setIsLoadingWeatherPrompt(false);
+      if (isDialogControl) {
+        setIsLoadingDialogWeatherPrompt(false);
+      } else {
+        setIsLoadingWeatherPrompt(false);
+      }
     }
   }, [toast]);
+
 
   const handleMapClick = useCallback((latLng: google.maps.LatLngLiteral) => {
     setCurrentMapCenter(latLng);
@@ -477,69 +529,46 @@ export default function GenScoutAIClient() {
   useEffect(() => {
     if (googleMapsApiLoaded) { 
         handleTimeOfDayChange(timeOfDay);
-        // Initially, weather is 'none', so generatedWeatherPrompt is '', which is fine.
-        // handleWeatherConditionChange will be called if the user selects a weather.
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleMapsApiLoaded]); // Only run once when API is loaded
+  }, [googleMapsApiLoaded]); 
 
 
   const processSnapshotAndGenerateAI = async (
     base64StreetViewImage: string,
-    currentModificationInstruction?: string
+    options: {
+      lens: string;
+      timeOfDayValue: number;
+      timeOfDayToken: string;
+      weatherConditionValue: string;
+      weatherConditionPrompt: string;
+      direction: string;
+      modificationInstruction?: string;
+      sceneDesc?: string; // Added sceneDesc
+    }
   ) => {
     if (isGeneratingCinematicImage) return;
     setIsGeneratingCinematicImage(true);
-    setGeneratedCinematicImage(null);
-
-    let finalTimePrompt = generatedTimePrompt;
-    let finalWeatherPrompt = generatedWeatherPrompt;
-    let tempIsLoadingTime = false;
-    let tempIsLoadingWeather = false;
-
+    setGeneratedCinematicImage(null); 
+  
     try {
-      // 1. Fetch fresh Time-of-Day Token
-      tempIsLoadingTime = true;
-      setIsLoadingTimePrompt(true);
-      const timeInput: GenerateTimeOfDayPromptInput = { time: timeOfDay };
-      const timeResult = await generateTimeOfDayPrompt(timeInput);
-      finalTimePrompt = timeResult.promptToken;
-      setGeneratedTimePrompt(finalTimePrompt); // Update UI display state
-      tempIsLoadingTime = false;
-      setIsLoadingTimePrompt(false);
-
-      // 2. Fetch fresh Weather Condition Prompt
-      if (weatherCondition && weatherCondition !== "none") {
-        tempIsLoadingWeather = true;
-        setIsLoadingWeatherPrompt(true);
-        const weatherInput: GenerateWeatherConditionInput = { weatherCondition: weatherCondition };
-        const weatherResult = await generateWeatherConditionPrompt(weatherInput);
-        finalWeatherPrompt = weatherResult.prompt;
-        setGeneratedWeatherPrompt(finalWeatherPrompt); // Update UI display state
-        tempIsLoadingWeather = false;
-        setIsLoadingWeatherPrompt(false);
-      } else {
-        finalWeatherPrompt = 'clear sky'; // Default for 'none' weather
-        setGeneratedWeatherPrompt(''); // Clear UI display for weather prompt
-      }
-
       const aiInput: GenerateCinematicShotInput = {
         streetViewImageDataUri: base64StreetViewImage,
-        focalLength: selectedLens,
-        timeOfDayToken: finalTimePrompt,
-        weatherConditionPrompt: finalWeatherPrompt,
-        sceneDescription: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
-        shotDirection: shotDirection,
-        modificationInstruction: currentModificationInstruction || undefined,
+        focalLength: options.lens,
+        timeOfDayToken: options.timeOfDayToken,
+        weatherConditionPrompt: options.weatherConditionPrompt,
+        sceneDescription: options.sceneDesc || (locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView),
+        shotDirection: options.direction,
+        modificationInstruction: options.modificationInstruction || undefined,
       };
-
+  
       const result = await generateCinematicShot(aiInput);
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         setSnapshotOverlays({
-            lens: selectedLens,
-            time: finalTimePrompt, // Use the freshly fetched prompt
-            weather: weatherCondition !== 'none' ? weatherCondition : 'Clear'
+            lens: options.lens,
+            time: options.timeOfDayToken,
+            weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear'
         });
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
@@ -558,11 +587,9 @@ export default function GenScoutAIClient() {
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false); 
     } finally {
       setIsGeneratingCinematicImage(false);
-      // Ensure loading states are reset if they were set
-      if (tempIsLoadingTime) setIsLoadingTimePrompt(false);
-      if (tempIsLoadingWeather) setIsLoadingWeatherPrompt(false);
     }
   };
+  
 
   const handleSnapshot = async () => {
     if (!isStreetViewReady || !streetViewPanoramaRef.current || !googleMapsApiKey) {
@@ -615,7 +642,24 @@ export default function GenScoutAIClient() {
       
       setLastStreetViewSnapshotDataUri(base64data); 
       setModificationPrompt(""); 
-      await processSnapshotAndGenerateAI(base64data); 
+
+      // Initialize dialog states with current main UI states
+      setDialogSelectedLens(selectedLens);
+      setDialogTimeOfDay(timeOfDay);
+      setDialogGeneratedTimePrompt(generatedTimePrompt);
+      setDialogWeatherCondition(weatherCondition);
+      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
+      setDialogShotDirection(shotDirection);
+
+      await processSnapshotAndGenerateAI(base64data, {
+        lens: selectedLens,
+        timeOfDayValue: timeOfDay,
+        timeOfDayToken: generatedTimePrompt,
+        weatherConditionValue: weatherCondition,
+        weatherConditionPrompt: generatedWeatherPrompt || (weatherCondition !== 'none' ? 'clear sky' : ''), // ensure prompt is not empty
+        direction: shotDirection,
+        sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
+      }); 
 
     } catch (error) {
       console.error("Error fetching/processing Street View snapshot:", error);
@@ -630,18 +674,26 @@ export default function GenScoutAIClient() {
     }
   };
 
-  const handleRegenerate = async () => {
+  const handleRegenerateFromDialog = async () => {
     if (!lastStreetViewSnapshotDataUri) {
-      toast({ title: "Regeneration Error", description: "No base Street View image available to regenerate from. Please take a new snapshot first.", variant: "destructive" });
+      toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
       return;
     }
     if (isGeneratingCinematicImage) return; 
 
-    toast({ title: "Regenerating Shot", description: "AI is creating a new variation...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri); 
+    toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
+    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
+        lens: dialogSelectedLens,
+        timeOfDayValue: dialogTimeOfDay,
+        timeOfDayToken: dialogGeneratedTimePrompt,
+        weatherConditionValue: dialogWeatherCondition,
+        weatherConditionPrompt: dialogGeneratedWeatherPrompt || (dialogWeatherCondition !== 'none' ? 'clear sky' : ''),
+        direction: dialogShotDirection,
+        sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
+    }); 
   };
 
-  const handleModifyAndRegenerate = async () => {
+  const handleModifyAndRegenerateFromDialog = async () => {
     if (!lastStreetViewSnapshotDataUri) {
       toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
       return;
@@ -652,8 +704,17 @@ export default function GenScoutAIClient() {
     }
     if (isGeneratingCinematicImage) return;
 
-    toast({ title: "Modifying & Regenerating", description: "AI is applying your changes...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, modificationPrompt);
+    toast({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings...", variant: "default" });
+    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
+        lens: dialogSelectedLens,
+        timeOfDayValue: dialogTimeOfDay,
+        timeOfDayToken: dialogGeneratedTimePrompt,
+        weatherConditionValue: dialogWeatherCondition,
+        weatherConditionPrompt: dialogGeneratedWeatherPrompt || (dialogWeatherCondition !== 'none' ? 'clear sky' : ''),
+        direction: dialogShotDirection,
+        modificationInstruction: modificationPrompt,
+        sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
+    });
   };
 
 
@@ -803,7 +864,7 @@ export default function GenScoutAIClient() {
                         disabled={!googleMapsApiLoaded}
                       />
                   </SidebarGroup>
-                  <ScrollArea className="h-[calc(100vh-220px)] pr-2"> {/* Adjusted height to accommodate cost section */}
+                  <ScrollArea className="h-[calc(100vh-220px)] pr-2"> 
                     <div className="space-y-3">
                       {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
                         <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
@@ -840,19 +901,19 @@ export default function GenScoutAIClient() {
                   <Alert variant="default" className="p-3">
                     <AlertTitle className="text-sm font-semibold">Monitor Your API Costs</AlertTitle>
                     <AlertDescription className="text-xs space-y-1.5 mt-1">
-                      <p>
-                        This application utilizes Google Cloud services (Maps, AI image generation via Genkit) which incur costs based on usage.
-                      </p>
-                      <p>
-                        For detailed billing, API usage metrics, and to set up budgets or alerts, please refer to your <strong>Google Cloud Console Billing dashboard</strong>.
-                      </p>
-                      <p>This is not a real-time cost tracker. Estimated pricing can be found at:</p>
+                      <p>This is <strong>not a real-time cost tracker</strong>. This application utilizes Google Cloud services which incur costs based on usage:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                          <li><strong>Google Maps Platform:</strong> Maps JavaScript API, Street View Static API, Places API, Geocoding API.</li>
+                          <li><strong>Generative AI (via Genkit):</strong> Gemini models for text and image generation.</li>
+                      </ul>
+                       <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your <strong>Google Cloud Console Billing dashboard</strong>.</p>
+                      <p className="mt-1.5">Estimated pricing can be found at:</p>
                       <ul className="list-disc pl-4 space-y-0.5">
                         <li>
-                          Google Maps Platform: <code className="text-xs bg-muted p-0.5 rounded">cloud.google.com/maps-platform/pricing</code>
+                          Google Maps: <a href="https://cloud.google.com/maps-platform/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/maps-platform/pricing</a>
                         </li>
                         <li>
-                          Vertex AI (Gemini models): <code className="text-xs bg-muted p-0.5 rounded">cloud.google.com/vertex-ai/pricing</code>
+                          Vertex AI (Gemini): <a href="https://cloud.google.com/vertex-ai/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/vertex-ai/pricing</a>
                         </li>
                       </ul>
                     </AlertDescription>
@@ -951,7 +1012,7 @@ export default function GenScoutAIClient() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3">
-                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
+                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements like cameras, trucks, talent holding) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
                   </p>
                  </CardContent>
               )}
@@ -1008,7 +1069,7 @@ export default function GenScoutAIClient() {
                       <Bot className="w-4 h-4" /> Weather
                       {isLoadingWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
                     </Label>
-                    <Select value={weatherCondition} onValueChange={handleWeatherConditionChange} disabled={!googleMapsApiLoaded}>
+                    <Select value={weatherCondition} onValueChange={(value) => handleWeatherConditionChange(value)}>
                       <SelectTrigger id="weather-condition" className="w-full text-sm">
                         <SelectValue placeholder="Select weather" />
                       </SelectTrigger>
@@ -1031,7 +1092,7 @@ export default function GenScoutAIClient() {
                     <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
                       <Film className="w-4 h-4" /> Shot Direction
                     </Label>
-                    <Select value={shotDirection} onValueChange={setShotDirection} disabled={!googleMapsApiLoaded}>
+                    <Select value={shotDirection} onValueChange={setShotDirection}>
                       <SelectTrigger id="shot-direction" className="w-full text-sm">
                         <SelectValue placeholder="Select shot direction" />
                       </SelectTrigger>
@@ -1133,110 +1194,191 @@ export default function GenScoutAIClient() {
           <DialogHeader className="p-4 border-b">
             <DialogTitle>Generated Cinematic Shot</DialogTitle>
             <DialogDescription>
-              AI-reimagined scene. You can try to modify it with text prompts below.
+              AI-reimagined scene. Adjust parameters below or use text prompts to modify.
             </DialogDescription>
           </DialogHeader>
-          <div className="p-4 space-y-4">
-            {isGeneratingCinematicImage && !generatedCinematicImage && ( 
-                <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
-                    <Skeleton className="w-full h-full rounded-lg" />
-                    <p className="absolute text-foreground">Generating AI Image...</p>
-                </div>
-            )}
-             {isGeneratingCinematicImage && generatedCinematicImage && ( 
-                <div className="relative">
-                   <Image
-                        key={generatedCinematicImage + "-loading"} 
-                        src={generatedCinematicImage}
-                        alt="Previous AI Cinematic Shot"
-                        width={800}
-                        height={450}
-                        data-ai-hint="cinematic outdoor"
-                        className="object-contain rounded-lg w-full h-auto opacity-50"
-                    />
-                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
-                        <ImageIcon className="w-12 h-12 text-white animate-pulse" />
-                         <p className="ml-2 text-white">Applying modifications...</p>
+          <ScrollArea className="max-h-[calc(100vh-200px)]">
+            <div className="p-4 space-y-4">
+                {isGeneratingCinematicImage && !generatedCinematicImage && ( 
+                    <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
+                        <Skeleton className="w-full h-full rounded-lg" />
+                        <p className="absolute text-foreground">Generating AI Image...</p>
                     </div>
-                </div>
-            )}
-            {!isGeneratingCinematicImage && generatedCinematicImage && (
-              <div className="relative">
-                <Image
-                  key={generatedCinematicImage} 
-                  src={generatedCinematicImage}
-                  alt="AI Cinematic Shot"
-                  width={800}
-                  height={450}
-                  data-ai-hint="cinematic outdoor"
-                  className="object-contain rounded-lg w-full h-auto"
-                  priority
-                />
-                {snapshotOverlays && (
-                  <>
-                    <div className="absolute bottom-4 left-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm backdrop-blur-sm">
-                      <p className="font-semibold">GenScoutAI</p>
-                      <p>Lens: {snapshotOverlays.lens}</p>
-                    </div>
-                    <div className="absolute bottom-4 right-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm text-right backdrop-blur-sm">
-                      <p>Time: {snapshotOverlays.time}</p>
-                      <p>Weather: {snapshotOverlays.weather}</p>
-                    </div>
-                  </>
                 )}
-              </div>
-            )}
-            {!isGeneratingCinematicImage && !generatedCinematicImage && ( 
-                 <div className="w-full aspect-video flex flex-col items-center justify-center bg-muted rounded-lg">
-                    <ImageIcon className="w-16 h-16 text-primary/50" />
-                    <p className="ml-2 text-muted-foreground">No image generated yet.</p>
+                {isGeneratingCinematicImage && generatedCinematicImage && ( 
+                    <div className="relative">
+                    <Image
+                            key={generatedCinematicImage + "-loading"} 
+                            src={generatedCinematicImage}
+                            alt="Previous AI Cinematic Shot"
+                            width={800}
+                            height={450}
+                            data-ai-hint="cinematic outdoor"
+                            className="object-contain rounded-lg w-full h-auto opacity-50"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                            <ImageIcon className="w-12 h-12 text-white animate-pulse" />
+                            <p className="ml-2 text-white">Applying modifications...</p>
+                        </div>
+                    </div>
+                )}
+                {!isGeneratingCinematicImage && generatedCinematicImage && (
+                <div className="relative">
+                    <Image
+                    key={generatedCinematicImage} 
+                    src={generatedCinematicImage}
+                    alt="AI Cinematic Shot"
+                    width={800}
+                    height={450}
+                    data-ai-hint="cinematic outdoor"
+                    className="object-contain rounded-lg w-full h-auto"
+                    priority
+                    />
+                    {snapshotOverlays && (
+                    <>
+                        <div className="absolute bottom-4 left-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm backdrop-blur-sm">
+                        <p className="font-semibold">GenScoutAI</p>
+                        <p>Lens: {snapshotOverlays.lens}</p>
+                        </div>
+                        <div className="absolute bottom-4 right-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm text-right backdrop-blur-sm">
+                        <p>Time: {snapshotOverlays.time}</p>
+                        <p>Weather: {snapshotOverlays.weather}</p>
+                        </div>
+                    </>
+                    )}
                 </div>
-            )}
-             {generatedCinematicImage && !isGeneratingCinematicImage && (
-              <div className="space-y-2">
-                <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
-                  <MessageSquarePlus className="w-4 h-4" />
-                  Modify Image (e.g., "make it snowy", "add dramatic clouds")
-                </Label>
-                <Textarea
-                  id="modification-prompt"
-                  placeholder="Type your modification here..."
-                  value={modificationPrompt}
-                  onChange={(e) => setModificationPrompt(e.target.value)}
-                  className="text-sm"
-                  rows={2}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Note: Advanced edits like adding specific uploaded characters are not yet supported. Modifications will re-generate the image based on the original scene and your text.
-                </p>
-              </div>
-            )}
-          </div>
+                )}
+                {!isGeneratingCinematicImage && !generatedCinematicImage && ( 
+                    <div className="w-full aspect-video flex flex-col items-center justify-center bg-muted rounded-lg">
+                        <ImageIcon className="w-16 h-16 text-primary/50" />
+                        <p className="ml-2 text-muted-foreground">No image generated yet.</p>
+                    </div>
+                )}
+
+                {/* Dialog Controls */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                    <div>
+                        <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                            <Focus className="w-4 h-4" /> Camera Lens
+                        </Label>
+                        <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens}>
+                            <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
+                                <SelectValue placeholder="Select lens" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {cameraLenses.map(lens => (
+                                <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                            <Film className="w-4 h-4" /> Shot Direction
+                        </Label>
+                        <Select value={dialogShotDirection} onValueChange={setDialogShotDirection}>
+                            <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
+                                <SelectValue placeholder="Select shot direction" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {shotDirectionOptions.map(option => (
+                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="md:col-span-2">
+                        <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                            <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
+                            {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                        </Label>
+                        <Slider
+                            id="dialog-time-of-day"
+                            min={0}
+                            max={23}
+                            step={1}
+                            value={[dialogTimeOfDay]}
+                            onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
+                            className="my-2"
+                        />
+                        {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
+                        <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                            <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
+                        </div>
+                        )}
+                    </div>
+                    <div>
+                        <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                            <Bot className="w-4 h-4" /> Weather
+                            {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                        </Label>
+                        <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)}>
+                            <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
+                            <SelectValue placeholder="Select weather" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                            <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                            <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                            <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                            <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                            </SelectContent>
+                        </Select>
+                        {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
+                        <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                            <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
+                        </div>
+                        )}
+                    </div>
+                </div>
+
+
+                {generatedCinematicImage && !isGeneratingCinematicImage && (
+                <div className="space-y-2 pt-4 border-t">
+                    <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
+                    <MessageSquarePlus className="w-4 h-4" />
+                    Modify Image (e.g., "make it snowy", "add dramatic clouds")
+                    </Label>
+                    <Textarea
+                    id="modification-prompt"
+                    placeholder="Type your modification here..."
+                    value={modificationPrompt}
+                    onChange={(e) => setModificationPrompt(e.target.value)}
+                    className="text-sm"
+                    rows={2}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                    Note: Advanced edits like adding specific uploaded characters are not yet supported. Modifications will re-generate the image based on the original scene and your text.
+                    </p>
+                </div>
+                )}
+            </div>
+          </ScrollArea>
           <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between">
             <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap">
-               <Button variant="outline" onClick={handleRegenerate} disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage}>
+                <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && !modificationPrompt ? 'animate-spin' : ''}`} />
                 Regenerate
-              </Button>
-              <Button 
+                </Button>
+                <Button 
                 variant="default" 
-                onClick={handleModifyAndRegenerate} 
+                onClick={handleModifyAndRegenerateFromDialog} 
                 disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage || !modificationPrompt.trim()}
-              >
+                >
                 <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && modificationPrompt ? 'animate-spin' : ''}`} />
                 Modify & Regenerate
-              </Button>
-              <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
+                </Button>
+                <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
-              </Button>
-              <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
+                </Button>
+                <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || isGeneratingCinematicImage}>
                 <Orbit className="mr-2 h-4 w-4" />
                 View in 360/VR
-              </Button>
+                </Button>
             </div>
             <DialogClose asChild>
-              <Button variant="secondary">Close</Button>
+                <Button variant="secondary">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
@@ -1244,3 +1386,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
