@@ -41,12 +41,13 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, AspectRatio } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, AspectRatio, Wand2 } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
 import { reframeImage, type ReframeImageInput } from '@/ai/flows/reframe-image-flow';
+import { applyFluxFilter, type ApplyFluxFilterInput } from '@/ai/flows/apply-flux-filter-flow';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -108,12 +109,16 @@ export default function GenScoutAIClient() {
   const [isLoadingDialogWeatherPrompt, setIsLoadingDialogWeatherPrompt] = useState<boolean>(false);
   const [dialogShotDirection, setDialogShotDirection] = useState<string>('eye-level default');
   const [dialogTargetAspectRatio, setDialogTargetAspectRatio] = useState<string>("16:9");
+  const [fluxPrompt, setFluxPrompt] = useState<string>('');
+  const [activeDialogTab, setActiveDialogTab] = useState<string>("refine-gemini");
+
 
   const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
   const [isReframingImage, setIsReframingImage] = useState<boolean>(false);
+  const [isApplyingFluxFilter, setIsApplyingFluxFilter] = useState<boolean>(false);
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
-  const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string, aspectRatio?: string} | null>(null);
+  const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string, aspectRatio?: string, filter?: string} | null>(null);
   const [lastStreetViewSnapshotDataUri, setLastStreetViewSnapshotDataUri] = useState<string | null>(null);
   
   const [currentDisplayMode, setCurrentDisplayMode] = useState<'map' | 'streetview' | 'planner'>('map');
@@ -362,7 +367,7 @@ export default function GenScoutAIClient() {
     if (generatedCinematicImage) {
       try {
         const image = new window.Image();
-        image.crossOrigin = "anonymous"; // Important for tainted canvas if image is from different origin (like Replicate)
+        image.crossOrigin = "anonymous"; 
         image.src = generatedCinematicImage;
   
         image.onload = () => {
@@ -550,9 +555,7 @@ export default function GenScoutAIClient() {
     options: {
       lens: string;
       timeOfDayValue: number;
-      timeOfDayToken?: string; // Made optional, will fetch if not provided
       weatherConditionValue: string;
-      weatherConditionPrompt?: string; // Made optional, will fetch if not provided
       direction: string;
       modificationInstruction?: string;
       sceneDesc?: string;
@@ -562,52 +565,49 @@ export default function GenScoutAIClient() {
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null);
   
-    let finalTimeOfDayToken = options.timeOfDayToken;
-    let finalWeatherConditionPrompt = options.weatherConditionPrompt;
+    let finalTimeOfDayToken: string;
+    let finalWeatherConditionPrompt: string;
+
+    const currentIsDialog = isGeneratedImageDialogOpen; // Capture if dialog is open AT THIS MOMENT
   
-    // Fetch time of day prompt if not provided
-    if (!finalTimeOfDayToken) {
-      setIsLoadingTimePrompt(true); // Corresponds to main UI, could also use dialog specific if contextually right
-      try {
-        const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
-        finalTimeOfDayToken = timeResult.promptToken;
-        // Update state for consistency, decide if it's main or dialog context
-        if (isGeneratedImageDialogOpen) setDialogGeneratedTimePrompt(finalTimeOfDayToken);
-        else setGeneratedTimePrompt(finalTimeOfDayToken);
-      } catch (e) {
-        console.error("Error fetching time prompt in process:", e);
-        finalTimeOfDayToken = "Error"; // Fallback
-        toast({ title: "AI Error", description: "Failed to get time-of-day token for generation.", variant: "destructive" });
-      } finally {
-        setIsLoadingTimePrompt(false);
-      }
+    // Fetch time of day prompt
+    if (currentIsDialog) setIsLoadingDialogTimePrompt(true); else setIsLoadingTimePrompt(true);
+    try {
+      const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
+      finalTimeOfDayToken = timeResult.promptToken;
+      if (currentIsDialog) setDialogGeneratedTimePrompt(finalTimeOfDayToken); else setGeneratedTimePrompt(finalTimeOfDayToken);
+    } catch (e) {
+      console.error("Error fetching time prompt in process:", e);
+      finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night"; // Simple fallback
+      toast({ title: "AI Error", description: "Failed to get time-of-day token, using simple fallback.", variant: "destructive" });
+    } finally {
+      if (currentIsDialog) setIsLoadingDialogTimePrompt(false); else setIsLoadingTimePrompt(false);
     }
   
-    // Fetch weather condition prompt if not provided and weather is not 'none'
-    if (!finalWeatherConditionPrompt && options.weatherConditionValue !== 'none') {
-      setIsLoadingWeatherPrompt(true); // Corresponds to main UI
+    // Fetch weather condition prompt
+    if (options.weatherConditionValue !== 'none') {
+      if (currentIsDialog) setIsLoadingDialogWeatherPrompt(true); else setIsLoadingWeatherPrompt(true);
       try {
         const weatherResult = await generateWeatherConditionPrompt({ weatherCondition: options.weatherConditionValue });
         finalWeatherConditionPrompt = weatherResult.prompt;
-         if (isGeneratedImageDialogOpen) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt);
-         else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
+        if (currentIsDialog) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt); else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
       } catch (e) {
         console.error("Error fetching weather prompt in process:", e);
-        finalWeatherConditionPrompt = "Error"; // Fallback
-        toast({ title: "AI Error", description: "Failed to get weather prompt for generation.", variant: "destructive" });
+        finalWeatherConditionPrompt = "clear sky"; // Simple fallback
+        toast({ title: "AI Error", description: "Failed to get weather prompt, using 'clear sky'.", variant: "destructive" });
       } finally {
-        setIsLoadingWeatherPrompt(false);
+        if (currentIsDialog) setIsLoadingDialogWeatherPrompt(false); else setIsLoadingWeatherPrompt(false);
       }
-    } else if (options.weatherConditionValue === 'none') {
-      finalWeatherConditionPrompt = ''; // Ensure it's empty if weather is 'none'
+    } else {
+      finalWeatherConditionPrompt = ''; 
     }
   
     try {
       const aiInput: GenerateCinematicShotInput = {
         streetViewImageDataUri: base64StreetViewImage,
         focalLength: options.lens,
-        timeOfDayToken: finalTimeOfDayToken || 'noon', // Fallback if still undefined
-        weatherConditionPrompt: finalWeatherConditionPrompt || (options.weatherConditionValue !== 'none' ? 'clear sky' : ''),
+        timeOfDayToken: finalTimeOfDayToken,
+        weatherConditionPrompt: finalWeatherConditionPrompt,
         sceneDescription: options.sceneDesc || (locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView),
         shotDirection: options.direction,
         modificationInstruction: options.modificationInstruction || undefined,
@@ -618,11 +618,13 @@ export default function GenScoutAIClient() {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         setSnapshotOverlays({
             lens: options.lens,
-            time: finalTimeOfDayToken || 'N/A',
+            time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
-            aspectRatio: "16:9" // Initial generation is always 16:9
+            aspectRatio: "16:9",
+            filter: undefined, 
         });
-        setDialogTargetAspectRatio("16:9"); // Reset dialog aspect ratio selector
+        setDialogTargetAspectRatio("16:9"); 
+        setActiveDialogTab("refine-gemini"); // Reset to first tab
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
       } else {
@@ -695,23 +697,22 @@ export default function GenScoutAIClient() {
       
       setLastStreetViewSnapshotDataUri(base64data); 
       setModificationPrompt(""); 
+      setFluxPrompt("");
 
-      // Initialize dialog states with current main UI states
+
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
-      setDialogGeneratedTimePrompt(generatedTimePrompt); // Use existing generated prompt
+      // Let processSnapshotAndGenerateAI fetch fresh prompts
       setDialogWeatherCondition(weatherCondition);
-      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt); // Use existing generated prompt
       setDialogShotDirection(shotDirection);
       setDialogTargetAspectRatio("16:9");
+      setActiveDialogTab("refine-gemini");
 
 
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
         timeOfDayValue: timeOfDay,
-        timeOfDayToken: generatedTimePrompt, // Pass existing tokens
         weatherConditionValue: weatherCondition,
-        weatherConditionPrompt: generatedWeatherPrompt, // Pass existing tokens
         direction: shotDirection,
         sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
       }); 
@@ -734,15 +735,13 @@ export default function GenScoutAIClient() {
       toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
       return;
     }
-    if (isGeneratingCinematicImage || isReframingImage) return; 
+    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return; 
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
-        timeOfDayToken: dialogGeneratedTimePrompt, // Use dialog's generated prompt
         weatherConditionValue: dialogWeatherCondition,
-        weatherConditionPrompt: dialogGeneratedWeatherPrompt, // Use dialog's generated prompt
         direction: dialogShotDirection,
         sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
     }); 
@@ -757,15 +756,13 @@ export default function GenScoutAIClient() {
       toast({ title: "Modification Empty", description: "Please enter a modification instruction.", variant: "default" });
       return;
     }
-    if (isGeneratingCinematicImage || isReframingImage) return;
+    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return;
 
     toast({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings...", variant: "default" });
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
-        timeOfDayToken: dialogGeneratedTimePrompt,
         weatherConditionValue: dialogWeatherCondition,
-        weatherConditionPrompt: dialogGeneratedWeatherPrompt,
         direction: dialogShotDirection,
         modificationInstruction: modificationPrompt,
         sceneDesc: locationForStreetView.startsWith('coords:') ? 'Custom coordinates' : locationForStreetView,
@@ -777,14 +774,14 @@ export default function GenScoutAIClient() {
       toast({ title: "Reframing Error", description: "No generated image available to reframe.", variant: "destructive" });
       return;
     }
-    if (isGeneratingCinematicImage || isReframingImage) return;
+    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return;
 
     setIsReframingImage(true);
     toast({ title: "Reframing Image", description: `Attempting to reframe to ${dialogTargetAspectRatio}...`, variant: "default" });
 
     try {
       const reframeInput: ReframeImageInput = {
-        base64ImageDataUri: generatedCinematicImage, // This is the current image (could be data URI or URL from previous reframe)
+        base64ImageDataUri: generatedCinematicImage, 
         targetAspectRatio: dialogTargetAspectRatio,
         promptContext: locationForStreetView.startsWith('coords:') ? `Scene at custom coordinates for ${snapshotOverlays?.lens || 'default lens'}` : `${locationForStreetView} with ${snapshotOverlays?.lens || 'default lens'}`,
       };
@@ -793,8 +790,9 @@ export default function GenScoutAIClient() {
       if (result.reframedImageUrl) {
         setGeneratedCinematicImage(result.reframedImageUrl);
         setSnapshotOverlays(prev => ({
-          ...prev!, // Assume prev is not null here
+          ...prev!, 
           aspectRatio: dialogTargetAspectRatio,
+          filter: prev?.filter, // Preserve existing filter if any
         }));
         toast({ title: "Image Reframed!", description: `Successfully reframed to ${dialogTargetAspectRatio}.`, variant: "default" });
       } else {
@@ -812,6 +810,50 @@ export default function GenScoutAIClient() {
     }
   };
 
+  const handleApplyFluxFilter = async () => {
+    if (!generatedCinematicImage) {
+      toast({ title: "Filter Error", description: "No generated image available to apply a filter to.", variant: "destructive" });
+      return;
+    }
+    if (!fluxPrompt.trim()) {
+      toast({ title: "Filter Prompt Empty", description: "Please enter a prompt for the artistic filter.", variant: "default" });
+      return;
+    }
+    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return;
+
+    setIsApplyingFluxFilter(true);
+    toast({ title: "Applying Filter", description: "Applying artistic filter with Flux...", variant: "default" });
+
+    try {
+      const fluxInput: ApplyFluxFilterInput = {
+        inputImageDataUri: generatedCinematicImage,
+        prompt: fluxPrompt,
+        outputFormat: 'png', 
+      };
+      const result = await applyFluxFilter(fluxInput);
+
+      if (result.outputImageUrl) {
+        setGeneratedCinematicImage(result.outputImageUrl);
+        setSnapshotOverlays(prev => ({
+          ...(prev || { lens: dialogSelectedLens, time: dialogGeneratedTimePrompt, weather: dialogWeatherCondition, aspectRatio: dialogTargetAspectRatio }),
+          filter: `Flux: ${fluxPrompt.substring(0, 30)}${fluxPrompt.length > 30 ? "..." : ""}`,
+        }));
+        toast({ title: "Filter Applied!", description: "Artistic filter applied successfully.", variant: "default" });
+      } else {
+        throw new Error("Replicate (Flux) did not return a modified image URL.");
+      }
+    } catch (error) {
+      console.error("Error applying Flux filter:", error);
+      toast({
+        title: "Filter Application Failed",
+        description: `Could not apply filter. ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplyingFluxFilter(false);
+    }
+  };
+
 
   if (!isClient) {
     return (
@@ -820,6 +862,8 @@ export default function GenScoutAIClient() {
       </div>
     );
   }
+
+  const anyOperationInProgress = isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter;
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -1004,7 +1048,7 @@ export default function GenScoutAIClient() {
                                     <li>Vertex AI (hosting Gemini models for text and image generation via Genkit).</li>
                                 </ul>
                             </li>
-                            <li><strong>Replicate:</strong> For image reframing (e.g., `luma/reframe-image` model).</li>
+                            <li><strong>Replicate:</strong> For image reframing (e.g., `luma/reframe-image` model) and artistic filters (e.g., `black-forest-labs/flux-kontext-pro` model).</li>
                         </ul>
                         <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your respective cloud provider dashboards:</p>
                         <ul className="list-disc pl-4 space-y-0.5">
@@ -1027,7 +1071,7 @@ export default function GenScoutAIClient() {
                             Replicate Models: Pricing varies per model. Check the specific model page on Replicate.com.
                             </li>
                         </ul>
-                         <p className="mt-1.5 text-xs italic">Ensure `REPLICATE_API_TOKEN` is set in your environment for reframing features.</p>
+                         <p className="mt-1.5 text-xs italic">Ensure `REPLICATE_API_TOKEN` is set in your environment for Replicate features.</p>
                     </AlertDescription>
                 </Alert>
                 </SidebarGroupContent>
@@ -1048,7 +1092,7 @@ export default function GenScoutAIClient() {
       <SidebarInset 
         className={cn(
           "flex flex-col relative", 
-          isUiHidden ? "p-0" : "p-2 md:p-4",
+          isUiHidden && currentDisplayMode === 'streetview' ? "p-0" : "p-2 md:p-4",
           !isUiHidden && "gap-4" 
         )}
       >
@@ -1073,7 +1117,7 @@ export default function GenScoutAIClient() {
                       variant={currentDisplayMode === 'map' ? 'default' : 'outline'} 
                       size="sm" 
                       onClick={() => setCurrentDisplayMode('map')}
-                      disabled={!googleMapsApiLoaded}
+                      disabled={!googleMapsApiLoaded || anyOperationInProgress}
                       className="min-w-[100px]"
                     >
                       <MapIcon className="mr-2 h-4 w-4" /> Map
@@ -1082,7 +1126,7 @@ export default function GenScoutAIClient() {
                       variant={currentDisplayMode === 'streetview' ? 'default' : 'outline'} 
                       size="sm" 
                       onClick={() => setCurrentDisplayMode('streetview')}
-                      disabled={!googleMapsApiLoaded || !locationForStreetView}
+                      disabled={!googleMapsApiLoaded || !locationForStreetView || anyOperationInProgress}
                       className="min-w-[130px]"
                     >
                       <EyeIcon className="mr-2 h-4 w-4" /> Street View
@@ -1094,7 +1138,7 @@ export default function GenScoutAIClient() {
                         setCurrentDisplayMode('planner');
                         setCurrentMapZoom(16); 
                       }}
-                      disabled={!googleMapsApiLoaded || !locationForStreetView}
+                      disabled={!googleMapsApiLoaded || !locationForStreetView || anyOperationInProgress}
                       className="min-w-[140px]"
                     >
                       <LayoutDashboard className="mr-2 h-4 w-4" /> Scene Planner
@@ -1111,6 +1155,7 @@ export default function GenScoutAIClient() {
                         variant={plannerViewType === 'satellite' ? 'default' : 'outline'} 
                         size="sm" 
                         onClick={() => setPlannerViewType('satellite')}
+                        disabled={anyOperationInProgress}
                       >
                         <Layers className="mr-2 h-4 w-4"/> Satellite
                       </Button>
@@ -1118,6 +1163,7 @@ export default function GenScoutAIClient() {
                         variant={plannerViewType === 'schematic' ? 'default' : 'outline'} 
                         size="sm" 
                         onClick={() => setPlannerViewType('schematic')}
+                        disabled={anyOperationInProgress}
                       >
                         <Network className="mr-2 h-4 w-4"/> Schematic
                       </Button>
@@ -1142,7 +1188,7 @@ export default function GenScoutAIClient() {
                     <Label htmlFor="camera-lens" className="flex items-center gap-2 text-sm mb-1">
                       <Focus className="w-4 h-4" /> Camera Lens
                     </Label>
-                    <Select value={selectedLens} onValueChange={setSelectedLens}>
+                    <Select value={selectedLens} onValueChange={setSelectedLens} disabled={anyOperationInProgress}>
                       <SelectTrigger id="camera-lens" className="w-full text-sm">
                         <SelectValue placeholder="Select lens" />
                       </SelectTrigger>
@@ -1167,7 +1213,7 @@ export default function GenScoutAIClient() {
                       value={[timeOfDay]}
                       onValueChange={(value) => handleTimeOfDayChange(value[0])}
                       className="my-2"
-                      disabled={!googleMapsApiLoaded}
+                      disabled={!googleMapsApiLoaded || anyOperationInProgress || isLoadingTimePrompt}
                     />
                     {generatedTimePrompt && !isLoadingTimePrompt && (
                       <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
@@ -1181,7 +1227,7 @@ export default function GenScoutAIClient() {
                       <Bot className="w-4 h-4" /> Weather
                       {isLoadingWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
                     </Label>
-                    <Select value={weatherCondition} onValueChange={(value) => handleWeatherConditionChange(value)}>
+                    <Select value={weatherCondition} onValueChange={(value) => handleWeatherConditionChange(value)} disabled={anyOperationInProgress || isLoadingWeatherPrompt}>
                       <SelectTrigger id="weather-condition" className="w-full text-sm">
                         <SelectValue placeholder="Select weather" />
                       </SelectTrigger>
@@ -1204,7 +1250,7 @@ export default function GenScoutAIClient() {
                     <Label htmlFor="shot-direction" className="flex items-center gap-2 text-sm mb-1">
                       <Film className="w-4 h-4" /> Shot Direction
                     </Label>
-                    <Select value={shotDirection} onValueChange={setShotDirection}>
+                    <Select value={shotDirection} onValueChange={setShotDirection} disabled={anyOperationInProgress}>
                       <SelectTrigger id="shot-direction" className="w-full text-sm">
                         <SelectValue placeholder="Select shot direction" />
                       </SelectTrigger>
@@ -1223,7 +1269,7 @@ export default function GenScoutAIClient() {
                       size="sm"
                       className="text-sm"
                       onClick={handleSnapshot}
-                      disabled={isGeneratingCinematicImage || isReframingImage || !isStreetViewReady || !googleMapsApiLoaded}
+                      disabled={anyOperationInProgress || !isStreetViewReady || !googleMapsApiLoaded}
                     >
                       {isGeneratingCinematicImage && !generatedCinematicImage && lastStreetViewSnapshotDataUri ? ( 
                         <>
@@ -1240,7 +1286,7 @@ export default function GenScoutAIClient() {
                       size="sm"
                       className="text-sm"
                       onClick={handleGenerate360Image}
-                      disabled={isGeneratingCinematicImage || isReframingImage || !isStreetViewReady || !googleMapsApiLoaded}
+                      disabled={anyOperationInProgress || !isStreetViewReady || !googleMapsApiLoaded}
                     >
                       <Orbit className="w-4 h-4 mr-2" /> Generate 360 Image
                     </Button>
@@ -1301,23 +1347,29 @@ export default function GenScoutAIClient() {
           </div>
       </SidebarInset>
 
-      <Dialog open={isGeneratedImageDialogOpen} onOpenChange={setIsGeneratedImageDialogOpen}>
+      <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
+          if (anyOperationInProgress && !open) return; // Prevent closing if an operation is in progress
+          setIsGeneratedImageDialogOpen(open);
+          if (!open) setActiveDialogTab("refine-gemini"); // Reset tab on close
+      }}>
         <DialogContent className="max-w-3xl w-full p-0">
           <DialogHeader className="p-4 border-b">
             <DialogTitle>Generated Cinematic Shot</DialogTitle>
             <DialogDescription>
-              AI-reimagined scene. Adjust parameters, reframe, or use text prompts to modify.
+              AI-reimagined scene. Adjust parameters, reframe, or apply filters.
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[calc(100vh-200px)]">
             <div className="p-4 space-y-4">
-                {(isGeneratingCinematicImage || isReframingImage) && !generatedCinematicImage && ( 
+                {(isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) && !generatedCinematicImage && ( 
                     <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
                         <Skeleton className="w-full h-full rounded-lg" />
-                        <p className="absolute text-foreground">{isReframingImage ? 'Reframing Image...' : 'Generating AI Image...'}</p>
+                        <p className="absolute text-foreground">
+                          {isGeneratingCinematicImage ? 'Generating AI Image...' : isReframingImage ? 'Reframing Image...' : 'Applying Filter...'}
+                        </p>
                     </div>
                 )}
-                {(isGeneratingCinematicImage || isReframingImage) && generatedCinematicImage && ( 
+                {(isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) && generatedCinematicImage && ( 
                     <div className="relative">
                     <Image
                             key={generatedCinematicImage + "-loading"} 
@@ -1331,11 +1383,13 @@ export default function GenScoutAIClient() {
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
                             <ImageIcon className="w-12 h-12 text-white animate-pulse" />
-                            <p className="ml-2 text-white">{isReframingImage ? 'Applying reframe...' : 'Applying modifications...'}</p>
+                            <p className="ml-2 text-white">
+                              {isGeneratingCinematicImage ? 'Applying modifications...' : isReframingImage ? 'Applying reframe...' : 'Applying filter...'}
+                            </p>
                         </div>
                     </div>
                 )}
-                {!isGeneratingCinematicImage && !isReframingImage && generatedCinematicImage && (
+                {!isGeneratingCinematicImage && !isReframingImage && !isApplyingFluxFilter && generatedCinematicImage && (
                 <div className="relative">
                     <Image
                     key={generatedCinematicImage} 
@@ -1352,105 +1406,149 @@ export default function GenScoutAIClient() {
                     <>
                         <div className="absolute bottom-4 left-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm backdrop-blur-sm">
                         <p className="font-semibold">GenScoutAI</p>
-                        <p>Lens: {snapshotOverlays.lens}</p>
+                        {snapshotOverlays.lens && <p>Lens: {snapshotOverlays.lens}</p>}
                         {snapshotOverlays.aspectRatio && <p>AR: {snapshotOverlays.aspectRatio}</p>}
                         </div>
                         <div className="absolute bottom-4 right-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm text-right backdrop-blur-sm">
-                        <p>Time: {snapshotOverlays.time}</p>
-                        <p>Weather: {snapshotOverlays.weather}</p>
+                        {snapshotOverlays.time && <p>Time: {snapshotOverlays.time}</p>}
+                        {snapshotOverlays.weather && <p>Weather: {snapshotOverlays.weather}</p>}
+                        {snapshotOverlays.filter && <p className="mt-1 text-primary/90 italic">{snapshotOverlays.filter}</p>}
                         </div>
                     </>
                     )}
                 </div>
                 )}
-                {!isGeneratingCinematicImage && !isReframingImage && !generatedCinematicImage && ( 
+                {!isGeneratingCinematicImage && !isReframingImage && !isApplyingFluxFilter && !generatedCinematicImage && ( 
                     <div className="w-full aspect-video flex flex-col items-center justify-center bg-muted rounded-lg">
                         <ImageIcon className="w-16 h-16 text-primary/50" />
                         <p className="ml-2 text-muted-foreground">No image generated yet.</p>
                     </div>
                 )}
 
-                {/* Dialog Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                    <div>
-                        <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
-                            <Focus className="w-4 h-4" /> Camera Lens
-                        </Label>
-                        <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={isGeneratingCinematicImage || isReframingImage}>
-                            <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
-                                <SelectValue placeholder="Select lens" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {cameraLenses.map(lens => (
-                                <SelectItem key={lens} value={lens}>{lens}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                <Tabs value={activeDialogTab} onValueChange={setActiveDialogTab} className="w-full pt-4 border-t">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="refine-gemini" disabled={anyOperationInProgress}>Refine (Gemini)</TabsTrigger>
+                    <TabsTrigger value="reframe" disabled={anyOperationInProgress || !generatedCinematicImage}>Reframe</TabsTrigger>
+                    <TabsTrigger value="filter-flux" disabled={anyOperationInProgress || !generatedCinematicImage}>Filter (Flux)</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="refine-gemini" className="mt-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                                <Focus className="w-4 h-4" /> Camera Lens
+                            </Label>
+                            <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={anyOperationInProgress}>
+                                <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
+                                    <SelectValue placeholder="Select lens" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {cameraLenses.map(lens => (
+                                    <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                                <Film className="w-4 h-4" /> Shot Direction
+                            </Label>
+                            <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={anyOperationInProgress}>
+                                <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
+                                    <SelectValue placeholder="Select shot direction" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {shotDirectionOptions.map(option => (
+                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                                <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
+                                {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                            </Label>
+                            <Slider
+                                id="dialog-time-of-day"
+                                min={0}
+                                max={23}
+                                step={1}
+                                value={[dialogTimeOfDay]}
+                                onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
+                                className="my-2"
+                                disabled={anyOperationInProgress || isLoadingDialogTimePrompt}
+                            />
+                            {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
+                            <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
+                            </div>
+                            )}
+                        </div>
+                        <div>
+                            <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                                <Bot className="w-4 h-4" /> Weather
+                                {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                            </Label>
+                            <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={anyOperationInProgress || isLoadingDialogWeatherPrompt}>
+                                <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
+                                <SelectValue placeholder="Select weather" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                                <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                                <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                                <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                                <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
+                            <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
+                            </div>
+                            )}
+                        </div>
                     </div>
-                    <div>
-                        <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
-                            <Film className="w-4 h-4" /> Shot Direction
+                    <div className="space-y-2 pt-4 border-t">
+                        <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
+                        <MessageSquarePlus className="w-4 h-4" />
+                        Text Modification (Gemini)
                         </Label>
-                        <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={isGeneratingCinematicImage || isReframingImage}>
-                            <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
-                                <SelectValue placeholder="Select shot direction" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {shotDirectionOptions.map(option => (
-                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="md:col-span-2">
-                        <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
-                            <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
-                            {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                        </Label>
-                        <Slider
-                            id="dialog-time-of-day"
-                            min={0}
-                            max={23}
-                            step={1}
-                            value={[dialogTimeOfDay]}
-                            onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
-                            className="my-2"
-                            disabled={isGeneratingCinematicImage || isReframingImage || isLoadingDialogTimePrompt}
+                        <Textarea
+                        id="modification-prompt"
+                        placeholder="e.g., make it snowy, add dramatic clouds (uses original Street View as base)"
+                        value={modificationPrompt}
+                        onChange={(e) => setModificationPrompt(e.target.value)}
+                        className="text-sm"
+                        rows={2}
+                        disabled={anyOperationInProgress}
                         />
-                        {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
-                        <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                            <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
-                        </div>
-                        )}
+                        <p className="text-xs text-muted-foreground">
+                        Note: Modifies the original scene with these text instructions & current parameters.
+                        </p>
                     </div>
-                    <div>
-                        <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
-                            <Bot className="w-4 h-4" /> Weather
-                            {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                        </Label>
-                        <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={isGeneratingCinematicImage || isReframingImage || isLoadingDialogWeatherPrompt}>
-                            <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
-                            <SelectValue placeholder="Select weather" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
-                            <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
-                            <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
-                            <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
-                            <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
-                        <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                            <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
-                        </div>
-                        )}
+                    <div className="flex gap-2 flex-wrap pt-2">
+                        <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
+                          <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
+                          Regenerate (16:9)
+                        </Button>
+                        <Button 
+                          variant="default" 
+                          onClick={handleModifyAndRegenerateFromDialog} 
+                          disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
+                        >
+                          <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt && !isReframingImage && !isApplyingFluxFilter ? 'animate-spin' : ''}`} />
+                          Modify & Regenerate (16:9)
+                        </Button>
                     </div>
-                    <div>
+                  </TabsContent>
+
+                  <TabsContent value="reframe" className="mt-4 space-y-4">
+                     <div>
                         <Label htmlFor="dialog-aspect-ratio" className="flex items-center gap-2 text-sm mb-1">
-                            <AspectRatio className="w-4 h-4" /> Aspect Ratio
+                            <AspectRatio className="w-4 h-4" /> Target Aspect Ratio
                         </Label>
-                        <Select value={dialogTargetAspectRatio} onValueChange={setDialogTargetAspectRatio} disabled={isGeneratingCinematicImage || isReframingImage}>
+                        <Select value={dialogTargetAspectRatio} onValueChange={setDialogTargetAspectRatio} disabled={anyOperationInProgress || !generatedCinematicImage}>
                             <SelectTrigger id="dialog-aspect-ratio" className="w-full text-sm">
                                 <SelectValue placeholder="Select aspect ratio" />
                             </SelectTrigger>
@@ -1461,59 +1559,53 @@ export default function GenScoutAIClient() {
                             </SelectContent>
                         </Select>
                     </div>
-                </div>
+                    <Button variant="outline" onClick={handleReframeImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                      <AspectRatio className={`mr-2 h-4 w-4 ${isReframingImage ? 'animate-spin' : ''}`} />
+                      Reframe to {dialogTargetAspectRatio}
+                    </Button>
+                  </TabsContent>
 
-
-                {generatedCinematicImage && !isGeneratingCinematicImage && !isReframingImage && (
-                <div className="space-y-2 pt-4 border-t">
-                    <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
-                    <MessageSquarePlus className="w-4 h-4" />
-                    Modify Image (e.g., "make it snowy", "add dramatic clouds")
-                    </Label>
-                    <Textarea
-                    id="modification-prompt"
-                    placeholder="Type your modification here..."
-                    value={modificationPrompt}
-                    onChange={(e) => setModificationPrompt(e.target.value)}
-                    className="text-sm"
-                    rows={2}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                    Note: Advanced edits like adding specific uploaded characters are not yet supported. Modifications will re-generate the image based on the original scene and your text.
-                    </p>
-                </div>
-                )}
+                  <TabsContent value="filter-flux" className="mt-4 space-y-4">
+                    <div>
+                        <Label htmlFor="flux-prompt" className="flex items-center gap-1.5">
+                        <Wand2 className="w-4 h-4" />
+                        Artistic Filter Prompt (Flux)
+                        </Label>
+                        <Textarea
+                        id="flux-prompt"
+                        placeholder="e.g., Make this a 90s cartoon, apply vintage film look, cinematic lighting (modifies current image)"
+                        value={fluxPrompt}
+                        onChange={(e) => setFluxPrompt(e.target.value)}
+                        className="text-sm"
+                        rows={2}
+                        disabled={anyOperationInProgress || !generatedCinematicImage}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                        Applies a filter/style to the *currently displayed image* using the Flux model.
+                        </p>
+                    </div>
+                     <Button variant="outline" onClick={handleApplyFluxFilter} disabled={!generatedCinematicImage || anyOperationInProgress || !fluxPrompt.trim()}>
+                      <Wand2 className={`mr-2 h-4 w-4 ${isApplyingFluxFilter ? 'animate-spin' : ''}`} />
+                      Apply Filter
+                    </Button>
+                  </TabsContent>
+                </Tabs>
             </div>
           </ScrollArea>
           <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between">
             <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap">
-                <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage || isReframingImage}>
-                  <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && !modificationPrompt && !isReframingImage ? 'animate-spin' : ''}`} />
-                  Regenerate (16:9)
-                </Button>
-                <Button 
-                  variant="default" 
-                  onClick={handleModifyAndRegenerateFromDialog} 
-                  disabled={!lastStreetViewSnapshotDataUri || isGeneratingCinematicImage || isReframingImage || !modificationPrompt.trim()}
-                >
-                  <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && lastStreetViewSnapshotDataUri && modificationPrompt && !isReframingImage ? 'animate-spin' : ''}`} />
-                  Modify & Regenerate (16:9)
-                </Button>
-                 <Button variant="outline" onClick={handleReframeImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage || isReframingImage}>
-                  <AspectRatio className={`mr-2 h-4 w-4 ${isReframingImage ? 'animate-spin' : ''}`} />
-                  Reframe to {dialogTargetAspectRatio}
-                </Button>
-                <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || isGeneratingCinematicImage || isReframingImage}>
+                {/* Common buttons can go here if needed, or keep them tab-specific */}
+                <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
                   <Download className="mr-2 h-4 w-4" />
                   Download
                 </Button>
-                <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || isGeneratingCinematicImage || isReframingImage}>
+                <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress}>
                   <Orbit className="mr-2 h-4 w-4" />
                   View in 360/VR
                 </Button>
             </div>
             <DialogClose asChild>
-                <Button variant="secondary">Close</Button>
+                <Button variant="secondary" disabled={anyOperationInProgress}>Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
@@ -1521,3 +1613,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
