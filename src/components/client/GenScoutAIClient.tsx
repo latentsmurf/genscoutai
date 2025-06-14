@@ -41,7 +41,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, AspectRatio, Wand2 } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, AspectRatio, Wand2, TimerIcon, RotateCcw } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -78,6 +78,35 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
 ];
+
+const ESTIMATED_COSTS = {
+  GEOCODING_REQUEST: 0.005,
+  STREET_VIEW_SNAPSHOT: 0.007,
+  GEMINI_TEXT_PROMPT: 0.001, // A rough average for time/weather/location info prompts
+  GEMINI_IMAGE_GENERATION: 0.02,
+  REPLICATE_REFRAME: 0.011,
+  REPLICATE_FLUX_FILTER: 0.0385,
+};
+
+interface SessionCosts {
+  geocodingRequests: number;
+  streetViewSnapshots: number;
+  geminiTextGenerations: number;
+  geminiImageGenerations: number;
+  replicateReframes: number;
+  replicateFluxFilters: number;
+  totalEstimatedCost: number;
+}
+
+const initialSessionCosts: SessionCosts = {
+  geocodingRequests: 0,
+  streetViewSnapshots: 0,
+  geminiTextGenerations: 0,
+  geminiImageGenerations: 0,
+  replicateReframes: 0,
+  replicateFluxFilters: 0,
+  totalEstimatedCost: 0,
+};
 
 
 export default function GenScoutAIClient() {
@@ -134,6 +163,7 @@ export default function GenScoutAIClient() {
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
   const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
   const [modificationPrompt, setModificationPrompt] = useState<string>("");
+  const [sessionCosts, setSessionCosts] = useState<SessionCosts>(initialSessionCosts);
 
 
   // Refs
@@ -169,6 +199,17 @@ export default function GenScoutAIClient() {
       loc.address.toLowerCase().includes(searchTermLower)
     );
   });
+
+  const updateSessionCost = useCallback((
+    type: keyof Omit<SessionCosts, 'totalEstimatedCost'>,
+    costPerUnit: number
+  ) => {
+    setSessionCosts(prev => ({
+      ...prev,
+      [type]: prev[type] + 1,
+      totalEstimatedCost: prev.totalEstimatedCost + costPerUnit,
+    }));
+  }, []);
   
   const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
     setIsLoadingLocationInfo(true);
@@ -179,6 +220,7 @@ export default function GenScoutAIClient() {
         input.coordinates = coords;
       }
       const result = await generateLocationInfo(input);
+      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
       setLocationInfo(result);
     } catch (error) {
       console.error("Error fetching location information:", error);
@@ -193,7 +235,7 @@ export default function GenScoutAIClient() {
     } finally {
       setIsLoadingLocationInfo(false);
     }
-  }, [toast]);
+  }, [toast, updateSessionCost]);
 
   const handleLocationSearch = useCallback((query?: string) => {
     const effectiveQuery = query || searchInput;
@@ -210,6 +252,7 @@ export default function GenScoutAIClient() {
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ address: effectiveQuery }, (results, status) => {
         if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
+            updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST);
             const newLocation = results[0].geometry.location.toJSON();
             const formattedAddress = results[0].formatted_address || effectiveQuery;
             setLocationForStreetView(formattedAddress); 
@@ -235,12 +278,13 @@ export default function GenScoutAIClient() {
             setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, toast, fetchLocationInformation]);
+  }, [searchInput, googleMapsApiLoaded, toast, fetchLocationInformation, updateSessionCost]);
 
   const handleAutocompletePlaceSelected = useCallback((placeName: string, placeGeometry?: google.maps.LatLng | null) => {
     setSearchInput(placeName);
     setLocationForStreetView(placeName); 
     if (placeGeometry) {
+      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); // Assume autocomplete counts as a geocode/places lookup
       const newLocation = placeGeometry.toJSON();
       setCurrentMapCenter(newLocation);
       setMarkerPosition(newLocation);
@@ -250,7 +294,7 @@ export default function GenScoutAIClient() {
     } else {
       handleLocationSearch(placeName); 
     }
-  }, [handleLocationSearch, fetchLocationInformation]);
+  }, [handleLocationSearch, fetchLocationInformation, updateSessionCost]);
   
   const handleStreetViewStatusChange = useCallback((status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => {
     if (status === 'OK') {
@@ -274,6 +318,7 @@ export default function GenScoutAIClient() {
     try {
       const input: GenerateTimeOfDayPromptInput = { time: value };
       const result = await generateTimeOfDayPrompt(input);
+      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
       if (isDialogControl) {
         setDialogGeneratedTimePrompt(result.promptToken);
       } else {
@@ -294,7 +339,7 @@ export default function GenScoutAIClient() {
         setIsLoadingTimePrompt(false);
       }
     }
-  }, [toast]);
+  }, [toast, updateSessionCost]);
 
   const handleWeatherConditionChange = useCallback(async (value: string, isDialogControl: boolean = false) => {
     if (!value || value === "none") {
@@ -317,6 +362,7 @@ export default function GenScoutAIClient() {
     try {
       const input: GenerateWeatherConditionInput = { weatherCondition: value };
       const result = await generateWeatherConditionPrompt(input);
+      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
       if (isDialogControl) {
         setDialogGeneratedWeatherPrompt(result.prompt);
       } else {
@@ -337,7 +383,7 @@ export default function GenScoutAIClient() {
         setIsLoadingWeatherPrompt(false);
       }
     }
-  }, [toast]);
+  }, [toast, updateSessionCost]);
 
 
   const handleMapClick = useCallback((latLng: google.maps.LatLngLiteral) => {
@@ -353,6 +399,7 @@ export default function GenScoutAIClient() {
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
+      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); // Reverse geocoding
       let locationNameForInfo = coordString; 
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
         locationNameForInfo = results[0].formatted_address || coordString;
@@ -361,7 +408,7 @@ export default function GenScoutAIClient() {
       }
       fetchLocationInformation(locationNameForInfo, latLng);
     });
-  }, [googleMapsApiLoaded, fetchLocationInformation]);
+  }, [googleMapsApiLoaded, fetchLocationInformation, updateSessionCost]);
 
   const handleDownloadImage = useCallback(async () => {
     if (generatedCinematicImage) {
@@ -574,6 +621,7 @@ export default function GenScoutAIClient() {
     if (currentIsDialog) setIsLoadingDialogTimePrompt(true); else setIsLoadingTimePrompt(true);
     try {
       const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
+      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
       finalTimeOfDayToken = timeResult.promptToken;
       if (currentIsDialog) setDialogGeneratedTimePrompt(finalTimeOfDayToken); else setGeneratedTimePrompt(finalTimeOfDayToken);
     } catch (e) {
@@ -588,6 +636,7 @@ export default function GenScoutAIClient() {
       if (currentIsDialog) setIsLoadingDialogWeatherPrompt(true); else setIsLoadingWeatherPrompt(true);
       try {
         const weatherResult = await generateWeatherConditionPrompt({ weatherCondition: options.weatherConditionValue });
+        updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
         finalWeatherConditionPrompt = weatherResult.prompt;
         if (currentIsDialog) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt); else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
       } catch (e) {
@@ -614,13 +663,14 @@ export default function GenScoutAIClient() {
       };
   
       const result = await generateCinematicShot(aiInput);
+      updateSessionCost('geminiImageGenerations', ESTIMATED_COSTS.GEMINI_IMAGE_GENERATION);
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         setSnapshotOverlays({
             lens: options.lens,
             time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
-            aspectRatio: "16:9",
+            aspectRatio: "16:9", // Default for Gemini generation
             filter: undefined, 
         });
         setDialogTargetAspectRatio("16:9"); 
@@ -687,6 +737,7 @@ export default function GenScoutAIClient() {
         }
         throw new Error(friendlyError);
       }
+      updateSessionCost('streetViewSnapshots', ESTIMATED_COSTS.STREET_VIEW_SNAPSHOT);
       const blob = await response.blob();
       const base64data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -701,11 +752,14 @@ export default function GenScoutAIClient() {
 
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
+      setDialogGeneratedTimePrompt(generatedTimePrompt); // Use current main UI generated prompt
       setDialogWeatherCondition(weatherCondition);
+      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt); // Use current main UI generated prompt
       setDialogShotDirection(shotDirection);
       setDialogTargetAspectRatio("16:9"); 
       setActiveDialogTab("refine-gemini"); 
 
+      // Pass main UI values for the first generation from snapshot
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
         timeOfDayValue: timeOfDay,
@@ -783,6 +837,7 @@ export default function GenScoutAIClient() {
         promptContext: locationForStreetView.startsWith('coords:') ? `Scene at custom coordinates for ${snapshotOverlays?.lens || 'default lens'}` : `${locationForStreetView} with ${snapshotOverlays?.lens || 'default lens'}`,
       };
       const result = await reframeImage(reframeInput);
+      updateSessionCost('replicateReframes', ESTIMATED_COSTS.REPLICATE_REFRAME);
 
       if (result.reframedImageUrl) {
         setGeneratedCinematicImage(result.reframedImageUrl);
@@ -828,6 +883,7 @@ export default function GenScoutAIClient() {
         outputFormat: 'png', 
       };
       const result = await applyFluxFilter(fluxInput);
+      updateSessionCost('replicateFluxFilters', ESTIMATED_COSTS.REPLICATE_FLUX_FILTER);
 
       if (result.outputImageUrl) {
         setGeneratedCinematicImage(result.outputImageUrl);
@@ -1034,43 +1090,79 @@ export default function GenScoutAIClient() {
                   Usage &amp; Cost Monitoring
                 </SidebarGroupLabel>
                 <SidebarGroupContent className="mt-2">
-                <Alert variant="default" className="p-3">
-                    <AlertTitle className="text-sm font-semibold">Monitor Your API Costs</AlertTitle>
-                    <AlertDescription className="text-xs space-y-1.5 mt-1">
-                        <p>This is <strong>not a real-time cost tracker</strong>. This application utilizes cloud services which incur costs based on usage:</p>
-                        <ul className="list-disc list-inside space-y-0.5">
-                            <li><strong>Google Cloud Platform:</strong>
-                                <ul className="list-disc list-inside pl-4">
-                                    <li>Maps JavaScript API, Street View Static API, Places API, Geocoding API.</li>
-                                    <li>Vertex AI (hosting Gemini models for text and image generation via Genkit).</li>
-                                </ul>
-                            </li>
-                            <li><strong>Replicate:</strong> For image reframing (e.g., `luma/reframe-image` model) and artistic filters (e.g., `black-forest-labs/flux-kontext-pro` model).</li>
-                        </ul>
-                        <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your respective cloud provider dashboards:</p>
-                        <ul className="list-disc pl-4 space-y-0.5">
-                            <li>
-                                Google Cloud Console: <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">console.cloud.google.com/billing</a>
-                            </li>
-                            <li>
-                                Replicate Dashboard: <a href="https://replicate.com/dashboard/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">replicate.com/dashboard/billing</a>
-                            </li>
-                        </ul>
-                        <p className="mt-1.5">Estimated pricing can be found at:</p>
-                         <ul className="list-disc pl-4 space-y-0.5">
-                            <li>
-                            Google Maps: <a href="https://cloud.google.com/maps-platform/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/maps-platform/pricing</a>
-                            </li>
-                            <li>
-                            Vertex AI (Gemini): <a href="https://cloud.google.com/vertex-ai/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/vertex-ai/pricing</a>
-                            </li>
-                             <li>
-                            Replicate Models: Pricing varies per model. Check the specific model page on Replicate.com.
-                            </li>
-                        </ul>
-                         <p className="mt-1.5 text-xs italic">Ensure `REPLICATE_API_TOKEN` is set in your environment for Replicate features.</p>
-                    </AlertDescription>
-                </Alert>
+                  <Alert variant="default" className="p-3">
+                      <AlertTitle className="text-sm font-semibold">Monitor Your API Costs</AlertTitle>
+                      <AlertDescription className="text-xs space-y-1.5 mt-1">
+                          <p>This application utilizes cloud services which incur costs based on usage:</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                              <li><strong>Google Cloud Platform:</strong>
+                                  <ul className="list-disc list-inside pl-4">
+                                      <li>Maps JavaScript API, Street View Static API, Places API, Geocoding API.</li>
+                                      <li>Vertex AI (hosting Gemini models for text and image generation via Genkit).</li>
+                                  </ul>
+                              </li>
+                              <li><strong>Replicate:</strong> For image reframing (e.g., `luma/reframe-image` model) and artistic filters (e.g., `black-forest-labs/flux-kontext-pro` model).</li>
+                          </ul>
+                          <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your respective cloud provider dashboards:</p>
+                          <ul className="list-disc pl-4 space-y-0.5">
+                              <li>
+                                  Google Cloud Console: <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">console.cloud.google.com/billing</a>
+                              </li>
+                              <li>
+                                  Replicate Dashboard: <a href="https://replicate.com/dashboard/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">replicate.com/dashboard/billing</a>
+                              </li>
+                          </ul>
+                          <p className="mt-1.5">Estimated pricing can be found at:</p>
+                           <ul className="list-disc pl-4 space-y-0.5">
+                              <li>
+                              Google Maps: <a href="https://cloud.google.com/maps-platform/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/maps-platform/pricing</a>
+                              </li>
+                              <li>
+                              Vertex AI (Gemini): <a href="https://cloud.google.com/vertex-ai/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/vertex-ai/pricing</a>
+                              </li>
+                               <li>
+                              Replicate Models: Pricing varies per model. Check the specific model page on Replicate.com.
+                              </li>
+                          </ul>
+                           <p className="mt-1.5 text-xs italic">Ensure `REPLICATE_API_TOKEN` is set in your environment for Replicate features.</p>
+                      </AlertDescription>
+                  </Alert>
+                  <Card className="mt-4 bg-background/50">
+                    <CardHeader className="p-3">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <TimerIcon className="w-4 h-4" />
+                        Current Session Estimated Costs
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Illustrative estimates only. Resets on page refresh.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-3 text-xs space-y-1">
+                      <div className="flex justify-between"><span>Geocoding/Places API:</span> <span>{sessionCosts.geocodingRequests}</span></div>
+                      <div className="flex justify-between"><span>Street View Static API:</span> <span>{sessionCosts.streetViewSnapshots}</span></div>
+                      <div className="flex justify-between"><span>Gemini Text Generations:</span> <span>{sessionCosts.geminiTextGenerations}</span></div>
+                      <div className="flex justify-between"><span>Gemini Image Generations:</span> <span>{sessionCosts.geminiImageGenerations}</span></div>
+                      <div className="flex justify-between"><span>Replicate Reframes:</span> <span>{sessionCosts.replicateReframes}</span></div>
+                      <div className="flex justify-between"><span>Replicate Flux Filters:</span> <span>{sessionCosts.replicateFluxFilters}</span></div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-sm">
+                        <span>Total Estimated:</span>
+                        <span>~${sessionCosts.totalEstimatedCost.toFixed(4)}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-3 text-xs"
+                        onClick={() => setSessionCosts(initialSessionCosts)}
+                      >
+                        <RotateCcw className="w-3 h-3 mr-1.5" />
+                        Reset Session Estimates
+                      </Button>
+                      <p className="text-xs text-muted-foreground pt-2 italic">
+                        <strong>Disclaimer:</strong> These are highly simplified, illustrative estimates for the current browser session only and DO NOT represent actual costs or official pricing. For accurate billing information, always refer to your Google Cloud and Replicate dashboards. Prices are subject to change by the providers.
+                      </p>
+                    </CardContent>
+                  </Card>
                 </SidebarGroupContent>
               </SidebarGroup>
             </ScrollArea>
@@ -1609,4 +1701,3 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
-
