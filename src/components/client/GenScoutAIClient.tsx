@@ -82,7 +82,7 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
 const ESTIMATED_COSTS = {
   GEOCODING_REQUEST: 0.005,
   STREET_VIEW_SNAPSHOT: 0.007,
-  GEMINI_TEXT_PROMPT: 0.001, // A rough average for time/weather/location info prompts
+  GEMINI_TEXT_PROMPT: 0.001, 
   GEMINI_IMAGE_GENERATION: 0.02,
   REPLICATE_REFRAME: 0.011,
   REPLICATE_FLUX_FILTER: 0.0385,
@@ -752,14 +752,14 @@ export default function GenScoutAIClient() {
 
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
-      setDialogGeneratedTimePrompt(generatedTimePrompt); // Use current main UI generated prompt
+      setDialogGeneratedTimePrompt(generatedTimePrompt); 
       setDialogWeatherCondition(weatherCondition);
-      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt); // Use current main UI generated prompt
+      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt); 
       setDialogShotDirection(shotDirection);
       setDialogTargetAspectRatio("16:9"); 
       setActiveDialogTab("refine-gemini"); 
 
-      // Pass main UI values for the first generation from snapshot
+      
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
         timeOfDayValue: timeOfDay,
