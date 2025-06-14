@@ -10,5 +10,6 @@ export interface FilmingLocation {
     lng: number;
   };
   year: number;
-  imageHint: string; // For data-ai-hint on placeholder images
+  imageUrl: string; // Changed from imageHint
 }
+

@@ -1013,12 +1013,12 @@ export default function GenScoutAIClient() {
                           </CardHeader>
                           <CardContent className="p-3 pt-0">
                             <Image
-                                src={`https://placehold.co/300x150.png`}
+                                src={loc.imageUrl}
                                 alt={`${loc.movieTitle} - ${loc.locationName}`}
                                 width={300}
                                 height={150}
-                                data-ai-hint={loc.imageHint}
                                 className="w-full h-auto rounded-sm object-cover mb-2"
+                                unoptimized={loc.imageUrl.startsWith('http')}
                               />
                             <p className="text-xs text-muted-foreground leading-tight">{loc.sceneDescription}</p>
                           </CardContent>
@@ -1403,7 +1403,6 @@ export default function GenScoutAIClient() {
                             alt="Previous AI Cinematic Shot / Being modified"
                             width={800}
                             height={450}
-                            data-ai-hint="cinematic outdoor"
                             className="object-contain rounded-lg w-full h-auto opacity-50"
                             unoptimized={generatedCinematicImage.startsWith('http')}
                         />
@@ -1423,7 +1422,6 @@ export default function GenScoutAIClient() {
                     alt="AI Cinematic Shot"
                     width={800}
                     height={450}
-                    data-ai-hint="cinematic outdoor"
                     className="object-contain rounded-lg w-full h-auto"
                     priority
                     unoptimized={generatedCinematicImage.startsWith('http')}
@@ -1624,3 +1622,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
