@@ -47,7 +47,7 @@ const generateCinematicShotFlow = ai.defineFlow(
     outputSchema: GenerateCinematicShotOutputSchema,
   },
   async (input: GenerateCinematicShotInput) => {
-    let textPrompt = `Objective: Create a high-quality, cinematic photograph in 16:9 landscape aspect ratio.
+    let textPrompt = `Objective: Create a high-quality, cinematic photograph. The final output MUST be a 16:9 landscape aspect ratio image.
 Base Image: Use the provided street view image as the structural and content foundation.
 Key Cinematic Adjustments:
 1. Focal Length & Perspective: Re-interpret the scene as if captured with a ${input.focalLength} lens. This must influence the field of view, depth, and perspective. For wider lenses (e.g., 16mm, 24mm), show a broader view with potential perspective distortion. For longer lenses (e.g., 85mm, 135mm), create a more compressed perspective. IMPORTANT: The final image output must always be 16:9 landscape, regardless of the chosen focal length.
@@ -67,7 +67,7 @@ Key Cinematic Adjustments:
     }
 
     textPrompt += `CRITICAL INSTRUCTIONS:
-A. Output Format: The final image MUST be in a 16:9 landscape aspect ratio. DO NOT generate portrait or square images.
+A. Output Format: The final image MUST be in a 16:9 landscape aspect ratio. Explicitly, the image width should be greater than its height to ensure landscape orientation. DO NOT generate portrait or square images.
 B. Remove ALL UI Overlays: Ensure the final image is purely the photographic scene. All UI elements, text, navigation arrows, watermarks, logos, or any other non-diegetic graphical elements present in the original street view image MUST be completely removed.
 C. Cinematic Quality: Focus on realistic and compelling composition, lighting, color grading, and texture to produce a visually appealing, film-like image. Avoid an overly "digital," "artificial," or "game-like" look.
 D. Maintain Scene Integrity: While stylizing and applying modifications, the core architectural elements, objects, and general layout of the original scene should remain recognizable unless the modification explicitly requests alteration of these elements.
@@ -107,3 +107,4 @@ Generate the reimagined cinematic shot based on these precise instructions.
     }
   }
 );
+
