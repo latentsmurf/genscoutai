@@ -542,6 +542,7 @@ export default function GenScoutAIClient() {
     };
   }, [googleMapsApiLoaded, handleAutocompletePlaceSelected, handleLocationSearch]);
 
+  // Initialize time prompt when API is loaded
   useEffect(() => {
     if (googleMapsApiLoaded) { 
         handleTimeOfDayChange(timeOfDay);
@@ -568,8 +569,11 @@ export default function GenScoutAIClient() {
     let finalTimeOfDayToken: string;
     let finalWeatherConditionPrompt: string;
 
-    const currentIsDialog = isGeneratedImageDialogOpen;
+    // Determine if the call is from the main UI or dialog context based on dialog open state
+    // This is a bit of a heuristic; a more robust way might be to pass a context flag if needed
+    const currentIsDialog = isGeneratedImageDialogOpen; 
   
+    // Always fetch fresh prompts
     if (currentIsDialog) setIsLoadingDialogTimePrompt(true); else setIsLoadingTimePrompt(true);
     try {
       const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
@@ -577,7 +581,7 @@ export default function GenScoutAIClient() {
       if (currentIsDialog) setDialogGeneratedTimePrompt(finalTimeOfDayToken); else setGeneratedTimePrompt(finalTimeOfDayToken);
     } catch (e) {
       console.error("Error fetching time prompt in process:", e);
-      finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night"; 
+      finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night"; // Simple fallback
       toast({ title: "AI Error", description: "Failed to get time-of-day token, using simple fallback.", variant: "destructive" });
     } finally {
       if (currentIsDialog) setIsLoadingDialogTimePrompt(false); else setIsLoadingTimePrompt(false);
@@ -591,13 +595,13 @@ export default function GenScoutAIClient() {
         if (currentIsDialog) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt); else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
       } catch (e) {
         console.error("Error fetching weather prompt in process:", e);
-        finalWeatherConditionPrompt = ""; 
+        finalWeatherConditionPrompt = ""; // Fallback to empty
         toast({ title: "AI Error", description: "Failed to get weather prompt, using empty.", variant: "destructive" });
       } finally {
         if (currentIsDialog) setIsLoadingDialogWeatherPrompt(false); else setIsLoadingWeatherPrompt(false);
       }
     } else {
-      finalWeatherConditionPrompt = ''; 
+      finalWeatherConditionPrompt = ''; // Explicitly empty if 'none'
     }
   
     try {
@@ -614,15 +618,16 @@ export default function GenScoutAIClient() {
       const result = await generateCinematicShot(aiInput);
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
+        // Set overlays based on what was *actually* used for generation
         setSnapshotOverlays({
             lens: options.lens,
             time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
             aspectRatio: "16:9", // Initial generation is always 16:9
-            filter: undefined, 
+            filter: undefined, // Clear filter on new generation
         });
-        setDialogTargetAspectRatio("16:9"); 
-        setActiveDialogTab("refine-gemini"); 
+        setDialogTargetAspectRatio("16:9"); // Reset dialog aspect ratio for new image
+        setActiveDialogTab("refine-gemini"); // Reset to first tab for a new image
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
       } else {
@@ -694,8 +699,8 @@ export default function GenScoutAIClient() {
       });
       
       setLastStreetViewSnapshotDataUri(base64data); 
-      setModificationPrompt(""); 
-      setFluxPrompt("");
+      setModificationPrompt(""); // Clear previous modification prompt for a new snapshot
+      setFluxPrompt(""); // Clear previous Flux prompt
 
       // Initialize dialog controls with main UI values
       setDialogSelectedLens(selectedLens);
@@ -733,7 +738,7 @@ export default function GenScoutAIClient() {
       toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
       return;
     }
-    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return; 
+    if (isGeneratingCinematicImage || isReframingImage || isApplyingFluxFilter) return; // Prevent concurrent operations
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
     await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
@@ -779,7 +784,7 @@ export default function GenScoutAIClient() {
 
     try {
       const reframeInput: ReframeImageInput = {
-        base64ImageDataUri: generatedCinematicImage, 
+        base64ImageDataUri: generatedCinematicImage, // Pass current image (can be base64 or Replicate URL)
         targetAspectRatio: dialogTargetAspectRatio,
         promptContext: locationForStreetView.startsWith('coords:') ? `Scene at custom coordinates for ${snapshotOverlays?.lens || 'default lens'}` : `${locationForStreetView} with ${snapshotOverlays?.lens || 'default lens'}`,
       };
@@ -788,9 +793,9 @@ export default function GenScoutAIClient() {
       if (result.reframedImageUrl) {
         setGeneratedCinematicImage(result.reframedImageUrl);
         setSnapshotOverlays(prev => ({
-          ...prev!, 
+          ...prev!, // Should always have previous overlays if reframing
           aspectRatio: dialogTargetAspectRatio,
-          filter: prev?.filter, 
+          filter: prev?.filter, // Preserve existing filter info if any
         }));
         toast({ title: "Image Reframed!", description: `Successfully reframed to ${dialogTargetAspectRatio}.`, variant: "default" });
       } else {
@@ -826,14 +831,14 @@ export default function GenScoutAIClient() {
       const fluxInput: ApplyFluxFilterInput = {
         inputImageDataUri: generatedCinematicImage,
         prompt: fluxPrompt,
-        outputFormat: 'png', 
+        outputFormat: 'png', // Or 'jpg' based on your needs
       };
       const result = await applyFluxFilter(fluxInput);
 
       if (result.outputImageUrl) {
         setGeneratedCinematicImage(result.outputImageUrl);
         setSnapshotOverlays(prev => ({
-          ...(prev || { lens: dialogSelectedLens, time: dialogGeneratedTimePrompt, weather: dialogWeatherCondition, aspectRatio: dialogTargetAspectRatio }),
+          ...(prev || { lens: dialogSelectedLens, time: dialogGeneratedTimePrompt, weather: dialogWeatherCondition, aspectRatio: dialogTargetAspectRatio }), // Provide defaults if prev is somehow null
           filter: `Flux: ${fluxPrompt.substring(0, 30)}${fluxPrompt.length > 30 ? "..." : ""}`,
         }));
         toast({ title: "Filter Applied!", description: "Artistic filter applied successfully.", variant: "default" });
@@ -1134,7 +1139,7 @@ export default function GenScoutAIClient() {
                       size="sm" 
                       onClick={() => {
                         setCurrentDisplayMode('planner');
-                        setCurrentMapZoom(16); 
+                        setCurrentMapZoom(16); // Default zoom for planner
                       }}
                       disabled={!googleMapsApiLoaded || !locationForStreetView || anyOperationInProgress}
                       className="min-w-[140px]"
@@ -1610,3 +1615,4 @@ export default function GenScoutAIClient() {
     </SidebarProvider>
   );
 }
+
