@@ -754,15 +754,25 @@ export default function GenScoutAIClient() {
     const imageUrl = photo.getUrl({ maxWidth: 800 });
 
     try {
-      const response = await fetch(imageUrl);
-      if (!response.ok) throw new Error('Failed to fetch image from Google.');
-
-      const blob = await response.blob();
       const base64data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(blob);
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            return reject(new Error('Failed to get canvas context'));
+          }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = (err) => {
+          console.error("Image loading error (check for CORS issues):", err);
+          reject(new Error('Failed to load image from Google. This may be a CORS issue.'));
+        };
+        img.src = imageUrl;
       });
       
       setLastStreetViewSnapshotDataUri(base64data);
