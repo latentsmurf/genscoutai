@@ -226,8 +226,8 @@ export default function GenScoutAIClient() {
 
 
   const handleLocationSearch = useCallback((query?: string) => {
-    const effectiveQuery = query || searchInput;
-    if (!effectiveQuery.trim()) {
+    const effectiveQuery = query || searchInputRef.current?.value;
+    if (!effectiveQuery || !effectiveQuery.trim()) {
       addNotification({ title: "Search Empty", description: "Please enter a location to search." });
       return;
     }
@@ -242,7 +242,7 @@ export default function GenScoutAIClient() {
         if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
             updateSessionCost('geocodingRequests');
             const formattedAddress = results[0].formatted_address || effectiveQuery;
-            if (query) setSearchInput(formattedAddress);
+            setSearchInput(formattedAddress);
             handleLocationSelect(formattedAddress, results[0].geometry.location, results[0].place_id);
         } else {
             let userMessage = `Geocoding failed: ${status}`;
@@ -260,7 +260,7 @@ export default function GenScoutAIClient() {
             setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, addNotification, handleLocationSelect, updateSessionCost]);
+  }, [googleMapsApiLoaded, addNotification, handleLocationSelect, updateSessionCost]);
 
   const handleAutocompletePlaceSelected = useCallback((place: google.maps.places.PlaceResult) => {
     const placeName = place.formatted_address || place.name;
@@ -511,7 +511,7 @@ export default function GenScoutAIClient() {
   }, [addNotification]);
 
   useEffect(() => {
-    if (googleMapsApiLoaded && searchInputRef.current && !autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.places) {
+    if (googleMapsApiLoaded && searchInputRef.current && !autocompleteRef.current) {
       const autocomplete = new window.google.maps.places.Autocomplete(
         searchInputRef.current,
         { types: ['geocode'] }
@@ -528,16 +528,10 @@ export default function GenScoutAIClient() {
       });
       autocompleteRef.current = autocomplete;
     }
+
     return () => {
-      if (autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.event && window.google.maps.event.clearInstanceListeners) {
-           window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-      const pacContainers = document.getElementsByClassName('pac-container');
-      while (pacContainers.length > 0) {
-        pacContainers[0].remove();
-      }
       if (autocompleteRef.current) {
-          autocompleteRef.current = null;
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, [googleMapsApiLoaded, handleAutocompletePlaceSelected, handleLocationSearch]);
@@ -989,8 +983,8 @@ export default function GenScoutAIClient() {
                                 <Image
                                     src={photo.getUrl({maxWidth: 400})}
                                     alt={`Place Photo ${index + 1}`}
-                                    layout="fill"
-                                    objectFit="cover"
+                                    fill
+                                    style={{objectFit: 'cover'}}
                                     className="group-hover:scale-105 transition-transform"
                                     unoptimized
                                 />
@@ -1459,8 +1453,8 @@ export default function GenScoutAIClient() {
                             <Image
                                 src={src}
                                 alt={`Scene Variation ${index + 1}`}
-                                layout="fill"
-                                objectFit="cover"
+                                fill
+                                style={{objectFit: 'cover'}}
                                 className="rounded-lg"
                                 unoptimized
                             />
