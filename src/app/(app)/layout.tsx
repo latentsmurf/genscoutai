@@ -101,7 +101,6 @@ export default function AppLayout({
                     </PopoverContent>
                 </Popover>
             </div>
-            <SidebarTrigger />
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -132,7 +131,7 @@ export default function AppLayout({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border">
+        <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border flex items-center justify-between">
            <SidebarMenu>
              <SidebarMenuItem>
                <SidebarMenuButton asChild isActive={pathname === '/account'} tooltip={{children: "Account"}}>
@@ -143,6 +142,7 @@ export default function AppLayout({
                </SidebarMenuButton>
              </SidebarMenuItem>
            </SidebarMenu>
+           <SidebarTrigger />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="p-0">
