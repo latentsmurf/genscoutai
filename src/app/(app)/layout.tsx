@@ -131,7 +131,7 @@ export default function AppLayout({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border flex items-center justify-between">
+        <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border flex flex-col items-stretch gap-2">
            <SidebarMenu>
              <SidebarMenuItem>
                <SidebarMenuButton asChild isActive={pathname === '/account'} tooltip={{children: "Account"}}>
@@ -142,7 +142,9 @@ export default function AppLayout({
                </SidebarMenuButton>
              </SidebarMenuItem>
            </SidebarMenu>
-           <SidebarTrigger />
+           <div className="flex justify-end">
+             <SidebarTrigger />
+           </div>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="p-0">
