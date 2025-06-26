@@ -121,6 +121,7 @@ export default function GenScoutAIClient() {
   const [placePhotos, setPlacePhotos] = useState<google.maps.places.PlacePhoto[]>([]);
   const [isLoadingPlacePhotos, setIsLoadingPlacePhotos] = useState<boolean>(false);
 
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -760,8 +761,7 @@ export default function GenScoutAIClient() {
       sceneDesc: locationForStreetView || 'Selected user photo',
     });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyOperationInProgress, addNotification, selectedLens, timeOfDay, generatedTimePrompt, weatherCondition, generatedWeatherPrompt, shotDirection, locationForStreetView]);
+  }, [anyOperationInProgress, addNotification, selectedLens, timeOfDay, generatedTimePrompt, weatherCondition, generatedWeatherPrompt, shotDirection, locationForStreetView, isGeneratingCinematicImage, processSnapshotAndGenerateAI]);
 
   const handleRegenerateFromDialog = async () => {
     if (!lastBaseImageSource) {
@@ -868,8 +868,6 @@ export default function GenScoutAIClient() {
       </div>
     );
   }
-
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   return (
       <div className="flex h-full flex-col md:flex-row gap-4 p-4">
