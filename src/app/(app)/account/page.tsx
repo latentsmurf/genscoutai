@@ -3,9 +3,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User } from 'lucide-react';
+import { User, LogOut } from 'lucide-react';
+import { useAppContext } from '@/context/AppContext';
+import { useRouter } from 'next/navigation';
 
 export default function AccountPage() {
+  const { logout } = useAppContext();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
   return (
      <div className="p-4 md:p-6 space-y-4">
       <header className="flex items-center gap-4">
@@ -30,7 +40,10 @@ export default function AccountPage() {
         </CardHeader>
         <CardContent>
             <p>This is a placeholder account page. In a real application, you would be able to manage your profile, subscription, and billing information here.</p>
-            <Button variant="destructive" className="mt-4">Log Out</Button>
+            <Button variant="destructive" className="mt-4" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Log Out
+            </Button>
         </CardContent>
       </Card>
     </div>

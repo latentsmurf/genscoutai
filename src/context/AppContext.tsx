@@ -18,6 +18,9 @@ export interface GeneratedImage {
 }
 
 interface AppContextType {
+  isAuthenticated: boolean;
+  login: () => void;
+  logout: () => void;
   images: GeneratedImage[];
   addImage: (image: Omit<GeneratedImage, 'id' | 'createdAt'>) => void;
 }
@@ -25,7 +28,17 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [images, setImages] = useState<GeneratedImage[]>([]);
+
+  const login = useCallback(() => {
+    setIsAuthenticated(true);
+  }, []);
+
+  const logout = useCallback(() => {
+    setIsAuthenticated(false);
+    setImages([]); // Also clear images on logout
+  }, []);
 
   const addImage = useCallback((image: Omit<GeneratedImage, 'id' | 'createdAt'>) => {
     setImages(prevImages => [
@@ -35,7 +48,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ images, addImage }}>
+    <AppContext.Provider value={{ images, addImage, isAuthenticated, login, logout }}>
       {children}
     </AppContext.Provider>
   );
