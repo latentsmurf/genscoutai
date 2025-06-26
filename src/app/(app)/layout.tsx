@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -11,12 +12,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { Camera, Settings, User, LayoutGrid, Compass } from 'lucide-react';
+import { Camera, Settings, User, LayoutGrid, Compass, DollarSign, RotateCcw } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
 import React, { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
 
 export default function AppLayout({
   children,
@@ -25,7 +28,7 @@ export default function AppLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated } = useAppContext();
+  const { isAuthenticated, sessionCosts, resetSessionCosts } = useAppContext();
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
 
   useEffect(() => {
@@ -57,11 +60,43 @@ export default function AppLayout({
   return (
     <SidebarProvider defaultOpen={true}>
       <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
-        <SidebarHeader className="p-4 border-b border-sidebar-border">
+        <SidebarHeader className="p-4 border-b border-sidebar-border flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 outline-none">
             <Camera className="w-8 h-8 text-primary" />
             <h1 className="text-xl font-semibold text-sidebar-foreground">GenScoutAI</h1>
           </Link>
+          <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <DollarSign className="mr-1 h-3 w-3" />
+                    ~${sessionCosts.totalEstimatedCost.toFixed(4)}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" side="right" align="start">
+                <div className="grid gap-4">
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Session Cost Estimate</h4>
+                        <p className="text-sm text-muted-foreground">
+                            Illustrative costs for this session only. Not actual billing.
+                        </p>
+                    </div>
+                    <div className="grid gap-2 text-sm">
+                        <div className="flex items-center justify-between"><span>Geocoding API Calls:</span><span>{sessionCosts.geocodingRequests}</span></div>
+                        <div className="flex items-center justify-between"><span>Places Details API Calls:</span><span>{sessionCosts.placesDetailsRequests}</span></div>
+                        <div className="flex items-center justify-between"><span>Street View API Calls:</span><span>{sessionCosts.streetViewSnapshots}</span></div>
+                        <div className="flex items-center justify-between"><span>Gemini Text Generations:</span><span>{sessionCosts.geminiTextGenerations}</span></div>
+                        <div className="flex items-center justify-between"><span>Gemini Image Generations:</span><span>{sessionCosts.geminiImageGenerations}</span></div>
+                    </div>
+                     <div className="flex items-center justify-between font-semibold border-t pt-2 mt-2">
+                        <p>Total Estimated Cost</p>
+                        <p>~${sessionCosts.totalEstimatedCost.toFixed(4)}</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={resetSessionCosts} className="mt-2">
+                        <RotateCcw className="mr-2 h-4 w-4" /> Reset Session Tracker
+                    </Button>
+                </div>
+            </PopoverContent>
+          </Popover>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>

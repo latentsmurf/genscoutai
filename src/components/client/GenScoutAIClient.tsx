@@ -66,36 +66,9 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
   { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
 ];
 
-const ESTIMATED_COSTS = {
-  GEOCODING_REQUEST: 0.005,
-  PLACES_DETAILS_REQUEST: 0.017,
-  STREET_VIEW_SNAPSHOT: 0.007,
-  GEMINI_TEXT_PROMPT: 0.001,
-  GEMINI_IMAGE_GENERATION: 0.02,
-};
-
-interface SessionCosts {
-  geocodingRequests: number;
-  placesDetailsRequests: number;
-  streetViewSnapshots: number;
-  geminiTextGenerations: number;
-  geminiImageGenerations: number;
-  totalEstimatedCost: number;
-}
-
-const initialSessionCosts: SessionCosts = {
-  geocodingRequests: 0,
-  placesDetailsRequests: 0,
-  streetViewSnapshots: 0,
-  geminiTextGenerations: 0,
-  geminiImageGenerations: 0,
-  totalEstimatedCost: 0,
-};
-
-
 export default function GenScoutAIClient() {
   const { toast } = useToast();
-  const { addImage } = useAppContext();
+  const { addImage, updateSessionCost } = useAppContext();
 
   // State Variables
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null);
@@ -142,7 +115,6 @@ export default function GenScoutAIClient() {
   const [isLoadingLocationInfo, setIsLoadingLocationInfo] = useState<boolean>(false);
   const [isUiHidden, setIsUiHidden] = useState<boolean>(false);
   const [modificationPrompt, setModificationPrompt] = useState<string>("");
-  const [sessionCosts, setSessionCosts] = useState<SessionCosts>(initialSessionCosts);
 
   const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
   const [isGeneratingVariations, setIsGeneratingVariations] = useState<boolean>(false);
@@ -180,17 +152,6 @@ export default function GenScoutAIClient() {
     );
   });
 
-  const updateSessionCost = useCallback((
-    type: keyof Omit<SessionCosts, 'totalEstimatedCost'>,
-    costPerUnit: number
-  ) => {
-    setSessionCosts(prev => ({
-      ...prev,
-      [type]: prev[type] + 1,
-      totalEstimatedCost: prev.totalEstimatedCost + costPerUnit,
-    }));
-  }, []);
-
   const fetchPlacePhotos = useCallback((placeId: string) => {
     if (!googleMapsApiLoaded || !window.google?.maps?.places) {
       return;
@@ -202,7 +163,7 @@ export default function GenScoutAIClient() {
     placesService.getDetails(
       { placeId, fields: ['photos'] },
       (place, status) => {
-        updateSessionCost('placesDetailsRequests', ESTIMATED_COSTS.PLACES_DETAILS_REQUEST);
+        updateSessionCost('placesDetailsRequests');
         if (status === window.google.maps.places.PlacesServiceStatus.OK && place?.photos) {
           setPlacePhotos(place.photos.slice(0, 20)); // Limit to 20 photos
         } else {
@@ -225,7 +186,7 @@ export default function GenScoutAIClient() {
         input.coordinates = coords;
       }
       const result = await generateLocationInfo(input);
-      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
+      updateSessionCost('geminiTextGenerations');
       setLocationInfo(result);
     } catch (error) {
       console.error("Error fetching location information:", error);
@@ -282,7 +243,7 @@ export default function GenScoutAIClient() {
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ address: effectiveQuery }, (results, status) => {
         if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
-            updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST);
+            updateSessionCost('geocodingRequests');
             const formattedAddress = results[0].formatted_address || effectiveQuery;
             if (query) setSearchInput(formattedAddress);
             handleLocationSelect(formattedAddress, results[0].geometry.location, results[0].place_id);
@@ -311,7 +272,7 @@ export default function GenScoutAIClient() {
     setSearchInput(placeName);
     
     if (place.geometry && place.geometry.location) {
-      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST);
+      updateSessionCost('geocodingRequests');
       handleLocationSelect(placeName, place.geometry.location, place.place_id);
     } else {
       handleLocationSearch(placeName);
@@ -341,7 +302,7 @@ export default function GenScoutAIClient() {
     try {
       const input: GenerateTimeOfDayPromptInput = { time: value };
       const result = await generateTimeOfDayPrompt(input);
-      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
+      updateSessionCost('geminiTextGenerations');
       if (isDialogControl) {
         setDialogGeneratedTimePrompt(result.promptToken);
       } else {
@@ -385,7 +346,7 @@ export default function GenScoutAIClient() {
     try {
       const input: GenerateWeatherConditionInput = { weatherCondition: value };
       const result = await generateWeatherConditionPrompt(input);
-      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
+      updateSessionCost('geminiTextGenerations');
       if (isDialogControl) {
         setDialogGeneratedWeatherPrompt(result.prompt);
       } else {
@@ -424,7 +385,7 @@ export default function GenScoutAIClient() {
 
     const geocoder = new window.google.maps.Geocoder();
     geocoder.geocode({ location: latLng }, (results, status) => {
-      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); 
+      updateSessionCost('geocodingRequests'); 
       let locationNameForInfo = coordString;
       let placeId: string | null = null;
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
@@ -451,7 +412,7 @@ export default function GenScoutAIClient() {
 
         image.onload = () => {
           const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('d');
           if (!ctx) {
             toast({ title: "Download Failed", description: "Could not create drawing context for watermark.", variant: "destructive"});
             return;
@@ -619,7 +580,7 @@ export default function GenScoutAIClient() {
     if (currentIsDialog) setIsLoadingDialogTimePrompt(true); else setIsLoadingTimePrompt(true);
     try {
       const timeResult = await generateTimeOfDayPrompt({ time: options.timeOfDayValue });
-      updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
+      updateSessionCost('geminiTextGenerations');
       finalTimeOfDayToken = timeResult.promptToken;
       if (currentIsDialog) setDialogGeneratedTimePrompt(finalTimeOfDayToken); else setGeneratedTimePrompt(finalTimeOfDayToken);
     } catch (e) {
@@ -634,7 +595,7 @@ export default function GenScoutAIClient() {
       if (currentIsDialog) setIsLoadingDialogWeatherPrompt(true); else setIsLoadingWeatherPrompt(true);
       try {
         const weatherResult = await generateWeatherConditionPrompt({ weatherCondition: options.weatherConditionValue });
-        updateSessionCost('geminiTextGenerations', ESTIMATED_COSTS.GEMINI_TEXT_PROMPT);
+        updateSessionCost('geminiTextGenerations');
         finalWeatherConditionPrompt = weatherResult.prompt;
         if (currentIsDialog) setDialogGeneratedWeatherPrompt(finalWeatherConditionPrompt); else setGeneratedWeatherPrompt(finalWeatherConditionPrompt);
       } catch (e) {
@@ -661,7 +622,7 @@ export default function GenScoutAIClient() {
       };
 
       const result = await generateCinematicShot(aiInput);
-      updateSessionCost('geminiImageGenerations', ESTIMATED_COSTS.GEMINI_IMAGE_GENERATION);
+      updateSessionCost('geminiImageGenerations');
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
         const overlayData = {
@@ -745,7 +706,7 @@ export default function GenScoutAIClient() {
         }
         throw new Error(friendlyError);
       }
-      updateSessionCost('streetViewSnapshots', ESTIMATED_COSTS.STREET_VIEW_SNAPSHOT);
+      updateSessionCost('streetViewSnapshots');
       const blob = await response.blob();
       const base64data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -904,7 +865,7 @@ export default function GenScoutAIClient() {
         };
 
         const result = await generateCinematicShot(variationInput);
-        updateSessionCost('geminiImageGenerations', ESTIMATED_COSTS.GEMINI_IMAGE_GENERATION);
+        updateSessionCost('geminiImageGenerations');
 
         if (result.generatedImageDataUri) {
           generatedVariations.push(result.generatedImageDataUri);
@@ -1066,15 +1027,6 @@ export default function GenScoutAIClient() {
               </div>
             </ScrollArea>
           </Tabs>
-          <CardFooter className="p-2 border-t mt-auto">
-             <Alert>
-              <DollarSign className="h-4 w-4" />
-              <AlertTitle>Usage & Cost Monitoring</AlertTitle>
-              <AlertDescription className="text-xs">
-                This is an illustrative session-only cost estimator. For actual billing, always refer to your cloud provider dashboard.
-              </AlertDescription>
-            </Alert>
-          </CardFooter>
         </Card>
 
         {/* RIGHT DISPLAY PANEL */}
@@ -1578,5 +1530,3 @@ export default function GenScoutAIClient() {
       </div>
   );
 }
-
-    
