@@ -21,7 +21,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
 }) => {
   const streetViewContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
-  const [_currentPanoId, setCurrentPanoId] = useState<string | null>(null); // Renamed to avoid confusion if used
+  const [_currentPanoId, setCurrentPanoId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
 
@@ -30,7 +30,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
     if (!currentContainer) return;
 
     setIsLoadingStreetView(true);
-    setStatusMessage(null); // Clear previous messages when location/api key/status changes
+    setStatusMessage(null);
 
     if (!apiKey) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
@@ -50,7 +50,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
     
     if (!locationToLoad) {
       if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-      onStreetViewStatusChange('ZERO_RESULTS', 'No location specified for Street View.'); // Technically not an error but no data
+      onStreetViewStatusChange('ZERO_RESULTS', 'No location specified for Street View.');
       setStatusMessage('Search for a location or click on the map to explore in Street View.');
       setIsLoadingStreetView(false);
       return;
@@ -98,7 +98,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
             setIsLoadingStreetView(false);
             if (svStatus === window.google.maps.StreetViewStatus.OK && currentContainer && data && data.location && data.location.pano && data.location.latLng) {
                 onStreetViewStatusChange('OK');
-                setStatusMessage(null); // Clear message on success
+                setStatusMessage(null);
                 const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
                     pano: data.location.pano,
                     position: data.location.latLng,
@@ -137,7 +137,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
         });
     };
 
-    if (typeof queryParamForService === 'string') { // Needs geocoding
+    if (typeof queryParamForService === 'string') {
         if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
              onStreetViewStatusChange('ERROR', 'Google Maps Geocoder not available.');
              setStatusMessage('Geocoder service component failed to load. Please refresh.');
@@ -159,7 +159,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
                 if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
             }
         });
-    } else if (queryParamForService) { // Is LatLngLiteral, use directly
+    } else if (queryParamForService) {
         processLocationForPanorama(queryParamForService as google.maps.LatLngLiteral);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,10 +181,11 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
             <p className="text-base text-foreground px-4">{statusMessage}</p>
         </div>
       )}
-      <div ref={streetViewContainerRef} className="w-full h-full min-h-[400px] md:min-h-[calc(100vh-12rem)] rounded-lg" />
+      <div ref={streetViewContainerRef} className="w-full h-full rounded-lg" />
     </div>
   );
 };
 
 export default StreetViewDisplay;
 
+    

@@ -27,9 +27,9 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -68,6 +68,7 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
 
 const ESTIMATED_COSTS = {
   GEOCODING_REQUEST: 0.005,
+  PLACES_DETAILS_REQUEST: 0.017,
   STREET_VIEW_SNAPSHOT: 0.007,
   GEMINI_TEXT_PROMPT: 0.001,
   GEMINI_IMAGE_GENERATION: 0.02,
@@ -75,6 +76,7 @@ const ESTIMATED_COSTS = {
 
 interface SessionCosts {
   geocodingRequests: number;
+  placesDetailsRequests: number;
   streetViewSnapshots: number;
   geminiTextGenerations: number;
   geminiImageGenerations: number;
@@ -83,6 +85,7 @@ interface SessionCosts {
 
 const initialSessionCosts: SessionCosts = {
   geocodingRequests: 0,
+  placesDetailsRequests: 0,
   streetViewSnapshots: 0,
   geminiTextGenerations: 0,
   geminiImageGenerations: 0,
@@ -144,6 +147,11 @@ export default function GenScoutAIClient() {
   const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
   const [isGeneratingVariations, setIsGeneratingVariations] = useState<boolean>(false);
 
+  // New state for Place Photos
+  const [currentPlaceId, setCurrentPlaceId] = useState<string | null>(null);
+  const [placePhotos, setPlacePhotos] = useState<google.maps.places.PlacePhoto[]>([]);
+  const [isLoadingPlacePhotos, setIsLoadingPlacePhotos] = useState<boolean>(false);
+
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -183,6 +191,31 @@ export default function GenScoutAIClient() {
     }));
   }, []);
 
+  const fetchPlacePhotos = useCallback((placeId: string) => {
+    if (!googleMapsApiLoaded || !window.google?.maps?.places) {
+      return;
+    }
+    setIsLoadingPlacePhotos(true);
+    setPlacePhotos([]);
+    const placesService = new window.google.maps.places.PlacesService(document.createElement('div'));
+
+    placesService.getDetails(
+      { placeId, fields: ['photos'] },
+      (place, status) => {
+        updateSessionCost('placesDetailsRequests', ESTIMATED_COSTS.PLACES_DETAILS_REQUEST);
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && place?.photos) {
+          setPlacePhotos(place.photos.slice(0, 20)); // Limit to 20 photos
+        } else {
+          setPlacePhotos([]);
+          if (status !== window.google.maps.places.PlacesServiceStatus.OK) {
+            console.warn(`PlacesService failed for photos: ${status}`);
+          }
+        }
+        setIsLoadingPlacePhotos(false);
+      }
+    );
+  }, [googleMapsApiLoaded, updateSessionCost]);
+
   const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
     setIsLoadingLocationInfo(true);
     setLocationInfo(null);
@@ -209,6 +242,31 @@ export default function GenScoutAIClient() {
     }
   }, [toast, updateSessionCost]);
 
+  const handleLocationSelect = useCallback((
+      name: string,
+      geometry: google.maps.LatLng | google.maps.LatLngLiteral,
+      placeId?: string | null
+    ) => {
+    const newLocation = 'toJSON' in geometry ? geometry.toJSON() : geometry;
+    setLocationForStreetView(name);
+    setCurrentMapCenter(newLocation);
+    setMarkerPosition(newLocation);
+    setCurrentMapZoom(15);
+    setCurrentDisplayMode('map');
+    
+    fetchLocationInformation(name, newLocation);
+
+    if (placeId) {
+      setCurrentPlaceId(placeId);
+      fetchPlacePhotos(placeId);
+      setActiveSidebarTab("location-photos");
+    } else {
+      setCurrentPlaceId(null);
+      setPlacePhotos([]);
+    }
+  }, [fetchLocationInformation, fetchPlacePhotos]);
+
+
   const handleLocationSearch = useCallback((query?: string) => {
     const effectiveQuery = query || searchInput;
     if (!effectiveQuery.trim()) {
@@ -225,15 +283,9 @@ export default function GenScoutAIClient() {
     geocoder.geocode({ address: effectiveQuery }, (results, status) => {
         if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry) {
             updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST);
-            const newLocation = results[0].geometry.location.toJSON();
             const formattedAddress = results[0].formatted_address || effectiveQuery;
-            setLocationForStreetView(formattedAddress);
-            setCurrentMapCenter(newLocation);
-            setMarkerPosition(newLocation);
-            setCurrentMapZoom(15);
-            setCurrentDisplayMode('map');
             if (query) setSearchInput(formattedAddress);
-            fetchLocationInformation(formattedAddress, newLocation);
+            handleLocationSelect(formattedAddress, results[0].geometry.location, results[0].place_id);
         } else {
             let userMessage = `Geocoding failed: ${status}`;
              if (status === window.google.maps.GeocoderStatus.ZERO_RESULTS) {
@@ -250,23 +302,22 @@ export default function GenScoutAIClient() {
             setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, toast, fetchLocationInformation, updateSessionCost]);
+  }, [searchInput, googleMapsApiLoaded, toast, handleLocationSelect, updateSessionCost]);
 
-  const handleAutocompletePlaceSelected = useCallback((placeName: string, placeGeometry?: google.maps.LatLng | null) => {
+  const handleAutocompletePlaceSelected = useCallback((place: google.maps.places.PlaceResult) => {
+    const placeName = place.formatted_address || place.name;
+    if (!placeName) return;
+
     setSearchInput(placeName);
-    setLocationForStreetView(placeName);
-    if (placeGeometry) {
-      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); 
-      const newLocation = placeGeometry.toJSON();
-      setCurrentMapCenter(newLocation);
-      setMarkerPosition(newLocation);
-      setCurrentMapZoom(15);
-      setCurrentDisplayMode('map');
-      fetchLocationInformation(placeName, newLocation);
+    
+    if (place.geometry && place.geometry.location) {
+      updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST);
+      handleLocationSelect(placeName, place.geometry.location, place.place_id);
     } else {
       handleLocationSearch(placeName);
     }
-  }, [handleLocationSearch, fetchLocationInformation, updateSessionCost]);
+  }, [handleLocationSearch, handleLocationSelect, updateSessionCost]);
+
 
   const handleStreetViewStatusChange = useCallback((status: 'OK' | 'ZERO_RESULTS' | 'ERROR', message?: string) => {
     if (status === 'OK') {
@@ -363,6 +414,8 @@ export default function GenScoutAIClient() {
     setMarkerPosition(latLng);
     const coordString = `coords:${latLng.lat},${latLng.lng}`;
     setLocationForStreetView(coordString);
+    setCurrentPlaceId(null);
+    setPlacePhotos([]);
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
       fetchLocationInformation(coordString, latLng);
@@ -373,14 +426,21 @@ export default function GenScoutAIClient() {
     geocoder.geocode({ location: latLng }, (results, status) => {
       updateSessionCost('geocodingRequests', ESTIMATED_COSTS.GEOCODING_REQUEST); 
       let locationNameForInfo = coordString;
+      let placeId: string | null = null;
       if (status === window.google.maps.GeocoderStatus.OK && results && results[0]) {
         locationNameForInfo = results[0].formatted_address || coordString;
+        placeId = results[0].place_id || null;
       } else {
         console.warn("Reverse geocoding failed for map click, using raw coords for info:", status);
       }
       fetchLocationInformation(locationNameForInfo, latLng);
+      if(placeId) {
+        setCurrentPlaceId(placeId);
+        fetchPlacePhotos(placeId);
+        setActiveSidebarTab('location-photos');
+      }
     });
-  }, [googleMapsApiLoaded, fetchLocationInformation, updateSessionCost]);
+  }, [googleMapsApiLoaded, fetchLocationInformation, fetchPlacePhotos, updateSessionCost]);
 
   const handleDownloadImage = useCallback(async () => {
     if (generatedCinematicImage) {
@@ -466,14 +526,9 @@ export default function GenScoutAIClient() {
 
   const handleFilmingLocationSelect = useCallback((location: FilmingLocation) => {
     setSearchInput(location.address || location.locationName);
-    setLocationForStreetView(location.address || location.locationName);
-    setCurrentMapCenter(location.coordinates);
-    setMarkerPosition(location.coordinates);
-    setCurrentMapZoom(15);
-    setCurrentDisplayMode('map');
-    fetchLocationInformation(location.locationName, location.coordinates);
+    handleLocationSelect(location.address || location.locationName, location.coordinates);
     toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
-  }, [fetchLocationInformation, toast]);
+  }, [handleLocationSelect, toast]);
 
   useEffect(() => {
     setIsClient(true);
@@ -496,7 +551,6 @@ export default function GenScoutAIClient() {
       });
     } else {
       console.warn("Google Maps API Key is not configured or is invalid. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
-      // Toast has been removed from here to avoid showing on every page load for users who haven't set it up yet
     }
   }, [toast]);
 
@@ -506,18 +560,14 @@ export default function GenScoutAIClient() {
         searchInputRef.current,
         { types: ['geocode'] }
       );
-      autocomplete.setFields(['name', 'formatted_address', 'geometry']);
+      autocomplete.setFields(['name', 'formatted_address', 'geometry', 'place_id']);
 
       autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace();
-        if (place && (place.formatted_address || place.name) && place.geometry && place.geometry.location) {
-          handleAutocompletePlaceSelected(place.formatted_address || place.name!, place.geometry.location);
-        } else if (place && (place.formatted_address || place.name)) {
-           handleLocationSearch(place.formatted_address || place.name!);
-        } else {
-          if(searchInputRef.current?.value) {
+        if (place && (place.formatted_address || place.name)) {
+            handleAutocompletePlaceSelected(place);
+        } else if (searchInputRef.current?.value) {
             handleLocationSearch(searchInputRef.current.value);
-          }
         }
       });
       autocompleteRef.current = autocomplete;
@@ -559,7 +609,7 @@ export default function GenScoutAIClient() {
     if (isGeneratingCinematicImage) return;
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null);
-    setMoodBoardImages([]); // Clear variations for new main image
+    setMoodBoardImages([]);
 
     let finalTimeOfDayToken: string;
     let finalWeatherConditionPrompt: string;
@@ -713,7 +763,7 @@ export default function GenScoutAIClient() {
       setDialogWeatherCondition(weatherCondition);
       setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
       setDialogShotDirection(shotDirection);
-      setMoodBoardImages([]); // Clear previous variations for a new snapshot
+      setMoodBoardImages([]);
 
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
@@ -733,6 +783,53 @@ export default function GenScoutAIClient() {
           duration: 10000,
       });
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false);
+    }
+  };
+
+  const handlePlacePhotoSelect = async (photo: google.maps.places.PlacePhoto) => {
+    if (anyOperationInProgress) return;
+    toast({ title: "Preparing Photo...", description: "Fetching selected image to use with AI." });
+
+    const imageUrl = photo.getUrl({ maxWidth: 800 });
+
+    try {
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error('Failed to fetch image from Google.');
+
+      const blob = await response.blob();
+      const base64data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(blob);
+      });
+      
+      setLastStreetViewSnapshotDataUri(base64data);
+      
+      setDialogSelectedLens(selectedLens);
+      setDialogTimeOfDay(timeOfDay);
+      setDialogGeneratedTimePrompt(generatedTimePrompt);
+      setDialogWeatherCondition(weatherCondition);
+      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
+      setDialogShotDirection(shotDirection);
+      setModificationPrompt("");
+      setMoodBoardImages([]);
+
+      await processSnapshotAndGenerateAI(base64data, {
+        lens: selectedLens,
+        timeOfDayValue: timeOfDay,
+        weatherConditionValue: weatherCondition,
+        direction: shotDirection,
+        sceneDesc: locationForStreetView || 'Selected user photo'
+      });
+
+    } catch (error) {
+      console.error("Error processing place photo:", error);
+      toast({
+          title: "Photo Processing Failed",
+          description: `Could not use the selected photo. ${error instanceof Error ? error.message : String(error)}`,
+          variant: "destructive",
+      });
     }
   };
 
@@ -798,7 +895,7 @@ export default function GenScoutAIClient() {
       try {
         const variationInput: GenerateCinematicShotInput = {
           streetViewImageDataUri: lastStreetViewSnapshotDataUri,
-          focalLength: dialogSelectedLens, // Use dialog's current lens
+          focalLength: dialogSelectedLens,
           timeOfDayToken: dialogGeneratedTimePrompt, 
           weatherConditionPrompt: dialogGeneratedWeatherPrompt, 
           sceneDescription: locationForStreetView.startsWith('coords:') ? `Custom coordinates - Variation ${i+1}` : `${locationForStreetView} - Variation ${i+1}`,
@@ -811,7 +908,7 @@ export default function GenScoutAIClient() {
 
         if (result.generatedImageDataUri) {
           generatedVariations.push(result.generatedImageDataUri);
-          setMoodBoardImages(prev => [...prev, result.generatedImageDataUri!]); // Update incrementally
+          setMoodBoardImages(prev => [...prev, result.generatedImageDataUri!]);
         } else {
           console.warn(`Variation ${i + 1} did not return an image.`);
         }
@@ -845,19 +942,149 @@ export default function GenScoutAIClient() {
   const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   return (
-      <div
-        className={cn(
-          "flex flex-col relative h-full",
-          isUiHidden && currentDisplayMode === 'streetview' ? "p-0" : "md:p-4",
-          !isUiHidden && "gap-4"
-        )}
-      >
+      <div className="flex h-full flex-col md:flex-row gap-4 p-4">
+        {/* LEFT CONTROL PANEL */}
+        <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col">
+          <CardHeader className="flex-row items-center gap-4 border-b">
+            <Compass className="w-8 h-8 hidden md:block" />
+            <div>
+              <CardTitle className="text-lg">Scout Controls</CardTitle>
+              <CardDescription className="text-sm">Find, analyze, and select your location.</CardDescription>
+            </div>
+          </CardHeader>
+          <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-3 m-2">
+                <TabsTrigger value="custom-search"><Search className="w-4 h-4 mr-1" />Search</TabsTrigger>
+                <TabsTrigger value="famous-locations"><Star className="w-4 h-4 mr-1"/>Famous</TabsTrigger>
+                <TabsTrigger value="location-photos" disabled={!currentPlaceId}><Building className="w-4 h-4 mr-1"/>Photos</TabsTrigger>
+            </TabsList>
+            <ScrollArea className="flex-1">
+              <div className="p-4 pt-0">
+              <TabsContent value="custom-search" className="mt-0">
+                  <div className="space-y-4">
+                      <form onSubmit={(e) => { e.preventDefault(); handleLocationSearch(); }} className="flex gap-2">
+                        <Input
+                          ref={searchInputRef}
+                          type="text"
+                          placeholder="Search for a location..."
+                          value={searchInput}
+                          onChange={(e) => setSearchInput(e.target.value)}
+                          disabled={!googleMapsApiLoaded || anyOperationInProgress}
+                        />
+                        <Button type="submit" size="icon" disabled={!googleMapsApiLoaded || anyOperationInProgress}>
+                          <Search className="w-4 h-4" />
+                        </Button>
+                      </form>
+                      {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed to search locations.</p>}
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                          <h3 className="font-semibold flex items-center gap-2"><InfoIcon className="w-4 h-4" /> Location Intel</h3>
+                          {isLoadingLocationInfo ? (
+                              <div className="space-y-2 pt-2">
+                                  <Skeleton className="h-4 w-full" />
+                                  <Skeleton className="h-4 w-5/6" />
+                                  <Skeleton className="h-4 w-full mt-2" />
+                                  <Skeleton className="h-4 w-4/6" />
+                              </div>
+                          ) : locationInfo ? (
+                            <div className="space-y-3 text-sm text-muted-foreground">
+                              <p>{locationInfo.summary}</p>
+                              <div className="space-y-1">
+                                <p className="font-medium text-foreground flex items-center gap-2"><FileText className="w-4 h-4 text-primary"/>Permitting Info</p>
+                                <p>{locationInfo.permittingInfo}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-medium text-foreground flex items-center gap-2"><ParkingCircle className="w-4 h-4 text-primary"/>Parking Assessment</p>
+                                <p>{locationInfo.parkingAssessment}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-medium text-foreground flex items-center gap-2"><Truck className="w-4 h-4 text-primary"/>Logistics Feasibility</p>
+                                <p>{locationInfo.logisticsFeasibility}</p>
+                              </div>
+                            </div>
+                          ) : (
+                              <p className="text-sm text-muted-foreground italic">Search for a location to generate AI-powered intel.</p>
+                          )}
+                      </div>
+                  </div>
+              </TabsContent>
+              <TabsContent value="famous-locations" className="mt-0">
+                <div className="space-y-4">
+                    <div>
+                      <Input
+                        type="text"
+                        placeholder="Filter famous locations..."
+                        value={filmingLocationSearchTerm}
+                        onChange={(e) => setFilmingLocationSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {filteredFilmingLocations.map(loc => (
+                          <button key={loc.id} onClick={() => handleFilmingLocationSelect(loc)} className="w-full text-left p-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-3">
+                              <Image src={loc.imageUrl} alt={loc.locationName} width={80} height={40} className="rounded object-cover aspect-video" />
+                              <div className="flex-1">
+                                  <p className="font-semibold text-sm leading-tight">{loc.movieTitle}</p>
+                                  <p className="text-xs text-muted-foreground leading-tight">{loc.locationName}</p>
+                              </div>
+                          </button>
+                      ))}
+                    </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="location-photos" className="mt-0">
+                 {isLoadingPlacePhotos ? (
+                    <div className="grid grid-cols-2 gap-2">
+                        {[...Array(6)].map((_, i) => <Skeleton key={i} className="w-full aspect-video rounded-lg" />)}
+                    </div>
+                 ) : placePhotos.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                        {placePhotos.map((photo, index) => (
+                           <button key={index} onClick={() => handlePlacePhotoSelect(photo)} className="relative aspect-video group rounded-lg overflow-hidden border hover:border-primary transition-all">
+                                <Image
+                                    src={photo.getUrl({maxWidth: 400})}
+                                    alt={`Place Photo ${index + 1}`}
+                                    layout="fill"
+                                    objectFit="cover"
+                                    className="group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Sparkles className="text-white w-8 h-8" />
+                                </div>
+                           </button>
+                        ))}
+                    </div>
+                 ) : (
+                    <div className="flex flex-col items-center justify-center text-center text-muted-foreground p-4 h-48 rounded-lg border-2 border-dashed">
+                        <ImageIcon className="w-12 h-12 mb-2" />
+                        <p className="text-sm font-medium">No user photos found</p>
+                        <p className="text-xs">This location may not have any user-uploaded photos on Google Maps.</p>
+                    </div>
+                 )}
+              </TabsContent>
+              </div>
+            </ScrollArea>
+          </Tabs>
+          <CardFooter className="p-2 border-t mt-auto">
+             <Alert>
+              <DollarSign className="h-4 w-4" />
+              <AlertTitle>Usage & Cost Monitoring</AlertTitle>
+              <AlertDescription className="text-xs">
+                This is an illustrative session-only cost estimator. For actual billing, always refer to your cloud provider dashboard.
+              </AlertDescription>
+            </Alert>
+          </CardFooter>
+        </Card>
+
+        {/* RIGHT DISPLAY PANEL */}
+        <div className="flex-1 flex flex-col gap-4 relative">
           {currentDisplayMode === 'streetview' && (
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setIsUiHidden(!isUiHidden)}
-                className="absolute top-4 right-4 z-50 bg-background/80 hover:bg-background rounded-full shadow-lg"
+                className="absolute top-2 right-2 z-50 bg-background/80 hover:bg-background rounded-full shadow-lg"
                 title={isUiHidden ? "Show Controls" : "Hide Controls"}
               >
                 {isUiHidden ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -865,14 +1092,10 @@ export default function GenScoutAIClient() {
           )}
 
           {!isUiHidden && (
-            <Card className="m-4 mb-0 md:m-0 md:mb-0">
-              <CardHeader className="pb-4 pt-4 px-4 flex-row items-center justify-between">
+            <Card>
+              <CardHeader className="p-4 flex-row items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <Compass className="w-8 h-8 hidden md:block" />
-                  <div>
-                    <CardTitle className="text-lg">Scout Mode</CardTitle>
-                    <CardDescription className="text-sm">Find, configure, and visualize your scene.</CardDescription>
-                  </div>
+                   <CardTitle className="text-lg">Viewport</CardTitle>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -907,8 +1130,7 @@ export default function GenScoutAIClient() {
                   </Button>
                 </div>
               </CardHeader>
-
-              {currentDisplayMode === 'planner' && (
+               {currentDisplayMode === 'planner' && (
                  <CardContent className="p-4 pt-0 border-t">
                   <div className="flex justify-between items-center pt-4">
                     <Label className="text-base font-semibold">Planner Options</Label>
@@ -931,16 +1153,13 @@ export default function GenScoutAIClient() {
                       </Button>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-3">
-                    Use this mode to plan your shots. Interactive annotation tools (shapes, text, icons for production elements) are planned for a future update. For now, please use screen capture to save your layouts and annotate with external image editing software.
-                  </p>
                  </CardContent>
               )}
             </Card>
           )}
 
           {!isUiHidden && currentDisplayMode === 'streetview' && (
-            <Card className="m-4 my-0 md:m-0 md:my-0">
+            <Card>
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-lg">Shot Configuration</CardTitle>
               </CardHeader>
@@ -1060,10 +1279,10 @@ export default function GenScoutAIClient() {
 
           <div
             className={cn(
-              "relative m-4 mt-0 md:m-0 flex-1",
+              "relative flex-1",
               isUiHidden && currentDisplayMode === 'streetview'
-                ? "fixed inset-0 z-0 w-screen h-screen"
-                : "flex-grow min-h-[300px] sm:min-h-[400px] md:min-h-0"
+                ? "fixed inset-0 z-0 w-screen h-screen !m-0 rounded-none"
+                : "min-h-[300px] sm:min-h-[400px] md:min-h-0"
             )}
           >
             {!googleMapsApiLoaded && (
@@ -1107,11 +1326,13 @@ export default function GenScoutAIClient() {
               />
             )}
           </div>
+        </div>
+
 
         <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
             if (anyOperationInProgress && !open) return;
             setIsGeneratedImageDialogOpen(open);
-            if (!open) setMoodBoardImages([]); // Clear variations when dialog closes
+            if (!open) setMoodBoardImages([]);
         }}>
             <DialogContent className="max-w-3xl w-full p-0">
             <DialogHeader className="p-4 border-b">
@@ -1139,7 +1360,7 @@ export default function GenScoutAIClient() {
                                 width={800}
                                 height={450}
                                 className="object-contain rounded-lg w-full h-auto opacity-50"
-                                unoptimized={generatedCinematicImage.startsWith('http')}
+                                unoptimized
                             />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
                                 <Loader2 className="w-12 h-12 text-white animate-spin" />
@@ -1159,7 +1380,7 @@ export default function GenScoutAIClient() {
                         height={450}
                         className="object-contain rounded-lg w-full h-auto"
                         priority
-                        unoptimized={generatedCinematicImage.startsWith('http')}
+                        unoptimized
                         />
                         {snapshotOverlays && (
                         <>
@@ -1274,13 +1495,13 @@ export default function GenScoutAIClient() {
                             disabled={anyOperationInProgress}
                             />
                             <p className="text-xs text-muted-foreground">
-                            Note: Modifies the original scene with these text instructions & current parameters. Character/prop uploads not supported by this model.
+                            Note: Modifies the original scene with these text instructions & current parameters.
                             </p>
                         </div>
                         <div className="flex gap-2 flex-wrap pt-2">
                             <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
                             <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                            Regenerate (16:9)
+                            Regenerate
                             </Button>
                             <Button
                             variant="default"
@@ -1288,7 +1509,7 @@ export default function GenScoutAIClient() {
                             disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
                             >
                             <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                            Modify & Regenerate (16:9)
+                            Modify & Regenerate
                             </Button>
                         </div>
                     </div>
@@ -1305,7 +1526,7 @@ export default function GenScoutAIClient() {
                                 layout="fill"
                                 objectFit="cover"
                                 className="rounded-lg"
-                                unoptimized={src.startsWith('http')}
+                                unoptimized
                             />
                             </div>
                         ))}
@@ -1357,3 +1578,5 @@ export default function GenScoutAIClient() {
       </div>
   );
 }
+
+    
