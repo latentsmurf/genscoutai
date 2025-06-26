@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -524,14 +523,14 @@ export default function GenScoutAIClient() {
         if (place && (place.formatted_address || place.name)) {
             handleAutocompletePlaceSelected(place);
         } else if (searchInputRef.current?.value) {
-            handleLocationSearch(searchInputRef.current.value);
+            handleLocationSearch();
         }
       });
       autocompleteRef.current = autocomplete;
     }
 
     return () => {
-      if (autocompleteRef.current) {
+      if (autocompleteRef.current && window.google?.maps?.event) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
@@ -761,7 +760,7 @@ export default function GenScoutAIClient() {
       sceneDesc: locationForStreetView || 'Selected user photo',
     });
 
-  }, [anyOperationInProgress, addNotification, selectedLens, timeOfDay, generatedTimePrompt, weatherCondition, generatedWeatherPrompt, shotDirection, locationForStreetView, isGeneratingCinematicImage, processSnapshotAndGenerateAI]);
+  }, [anyOperationInProgress, addNotification, selectedLens, timeOfDay, generatedTimePrompt, weatherCondition, generatedWeatherPrompt, shotDirection, locationForStreetView, processSnapshotAndGenerateAI]);
 
   const handleRegenerateFromDialog = async () => {
     if (!lastBaseImageSource) {
@@ -1400,6 +1399,14 @@ export default function GenScoutAIClient() {
                                 )}
                             </div>
                         </div>
+
+                        <div className="pt-2">
+                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
+                                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                Regenerate
+                            </Button>
+                        </div>
+
                         <div className="space-y-2 pt-4 border-t">
                             <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
                             <MessageSquarePlus className="w-4 h-4" />
@@ -1415,22 +1422,18 @@ export default function GenScoutAIClient() {
                             disabled={anyOperationInProgress}
                             />
                             <p className="text-xs text-muted-foreground">
-                            Note: Modifies the original scene with these text instructions & current parameters.
+                            Note: Modifies the original scene with these text instructions &amp; current parameters.
                             </p>
-                        </div>
-                        <div className="flex gap-2 flex-wrap pt-2">
-                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
-                            <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                            Regenerate
-                            </Button>
-                            <Button
-                            variant="default"
-                            onClick={handleModifyAndRegenerateFromDialog}
-                            disabled={!lastBaseImageSource || anyOperationInProgress || !modificationPrompt.trim()}
-                            >
-                            <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                            Modify & Regenerate
-                            </Button>
+                            <div className="pt-2">
+                                <Button
+                                variant="default"
+                                onClick={handleModifyAndRegenerateFromDialog}
+                                disabled={!lastBaseImageSource || anyOperationInProgress || !modificationPrompt.trim()}
+                                >
+                                <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                Modify &amp; Regenerate
+                                </Button>
+                            </div>
                         </div>
                     </div>
                     
