@@ -2,7 +2,6 @@ import type {Metadata} from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster";
 import { AppProvider } from '@/context/AppContext';
 
 export const metadata: Metadata = {
@@ -76,7 +75,6 @@ export default function RootLayout({
         <AppProvider>
           {children}
         </AppProvider>
-        <Toaster />
       </body>
     </html>
   );

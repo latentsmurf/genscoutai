@@ -13,7 +13,7 @@ import {
   SidebarMenuButton,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { Camera, Settings, User, LayoutGrid, Compass, DollarSign, RotateCcw, PanelLeft } from 'lucide-react';
+import { Camera, Settings, User, LayoutGrid, Compass, DollarSign, RotateCcw, PanelLeft, Bell, Trash2 } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
@@ -21,6 +21,11 @@ import React, { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+
 
 export default function AppLayout({
   children,
@@ -29,8 +34,10 @@ export default function AppLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, sessionCosts, resetSessionCosts } = useAppContext();
+  const { isAuthenticated, sessionCosts, resetSessionCosts, notifications, markAllAsRead, clearNotifications } = useAppContext();
   const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
+  const unreadCount = notifications.filter(n => !n.read).length;
+
 
   useEffect(() => {
     // This check ensures that we don't redirect on the server or during initial hydration.
@@ -66,8 +73,7 @@ export default function AppLayout({
             <Camera className="w-8 h-8 text-primary" />
             <h1 className="text-xl font-semibold text-sidebar-foreground group-data-[state=collapsed]:hidden">GenScoutAI</h1>
           </Link>
-          <div className="flex items-center gap-1">
-            <div className="group-data-[state=collapsed]:hidden">
+          <div className="flex items-center gap-1 group-data-[state=collapsed]:hidden">
                 <Popover>
                     <PopoverTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
@@ -100,7 +106,49 @@ export default function AppLayout({
                         </div>
                     </PopoverContent>
                 </Popover>
-            </div>
+
+                <Popover onOpenChange={(isOpen) => { if (!isOpen) { markAllAsRead(); } }}>
+                    <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                        <Bell className="h-4 w-4" />
+                        {unreadCount > 0 && (
+                        <Badge variant="destructive" className="absolute top-0 right-0 h-4 w-4 shrink-0 rounded-full p-0 flex items-center justify-center text-xs">
+                            {unreadCount}
+                        </Badge>
+                        )}
+                        <span className="sr-only">Notifications</span>
+                    </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="end">
+                        <div className="flex items-center justify-between p-3 border-b">
+                            <h4 className="font-medium">Notifications</h4>
+                            {notifications.length > 0 && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearNotifications}>
+                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="sr-only">Clear all</span>
+                                </Button>
+                            )}
+                        </div>
+                        <ScrollArea className="h-[320px]">
+                            {notifications.length === 0 ? (
+                            <p className="text-sm text-center text-muted-foreground py-16">No new notifications.</p>
+                            ) : (
+                            <div className="flex flex-col">
+                                {notifications.map((n) => (
+                                <div key={n.id} className="p-3 border-b flex gap-3 last:border-b-0">
+                                    <div className={cn("mt-1 h-2 w-2 rounded-full shrink-0", n.read ? 'bg-transparent' : n.variant === 'destructive' ? 'bg-destructive' : 'bg-primary')} />
+                                    <div className="space-y-1">
+                                    <p className="font-semibold text-sm">{n.title}</p>
+                                    <p className="text-sm text-muted-foreground">{n.description}</p>
+                                    <p className="text-xs text-muted-foreground/80">{formatDistanceToNow(n.createdAt, { addSuffix: true })}</p>
+                                    </div>
+                                </div>
+                                ))}
+                            </div>
+                            )}
+                        </ScrollArea>
+                    </PopoverContent>
+                </Popover>
           </div>
         </SidebarHeader>
         <SidebarContent>

@@ -7,13 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Camera, LogIn, UserCheck } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
 export default function LoginPage() {
-    const { login } = useAppContext();
+    const { login, addNotification } = useAppContext();
     const router = useRouter();
-    const { toast } = useToast();
 
     const handleDeveloperLogin = () => {
         login();
@@ -22,10 +20,9 @@ export default function LoginPage() {
     
     const handleStandardLogin = (e: React.FormEvent) => {
         e.preventDefault();
-        toast({
+        addNotification({
             title: "Login Not Implemented",
             description: "Please use the Developer Login Override.",
-            variant: "default",
         });
     };
 

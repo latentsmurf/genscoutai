@@ -6,14 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Settings } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useAppContext } from '@/context/AppContext';
 
 export default function SettingsPage() {
-  const { toast } = useToast();
+  const { addNotification } = useAppContext();
 
   // State for all settings
   const [model, setModel] = useState('gemini-1.5-pro');
@@ -22,7 +22,7 @@ export default function SettingsPage() {
   const [showLinks, setShowLinks] = useState(true);
 
   const handleSave = () => {
-    toast({
+    addNotification({
       title: "Settings Saved (Conceptual)",
       description: "In a real application, your settings would be persisted.",
     });

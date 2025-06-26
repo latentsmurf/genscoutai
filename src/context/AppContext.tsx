@@ -18,6 +18,15 @@ export interface GeneratedImage {
   createdAt: Date;
 }
 
+export interface AppNotification {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: Date;
+  read: boolean;
+  variant?: 'default' | 'destructive';
+}
+
 const ESTIMATED_COSTS = {
   GEOCODING_REQUEST: 0.005,
   PLACES_DETAILS_REQUEST: 0.017,
@@ -55,6 +64,10 @@ interface AppContextType {
   sessionCosts: SessionCosts;
   updateSessionCost: (type: CostType) => void;
   resetSessionCosts: () => void;
+  notifications: AppNotification[];
+  addNotification: (notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => void;
+  markAllAsRead: () => void;
+  clearNotifications: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -63,6 +76,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [sessionCosts, setSessionCosts] = useState<SessionCosts>(initialSessionCosts);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const login = useCallback(() => {
     setIsAuthenticated(true);
@@ -72,6 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(false);
     setImages([]); // Also clear images on logout
     setSessionCosts(initialSessionCosts); // Reset costs on logout
+    setNotifications([]);
   }, []);
 
   const addImage = useCallback((image: Omit<GeneratedImage, 'id' | 'createdAt'>) => {
@@ -102,6 +117,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSessionCosts(initialSessionCosts);
   }, []);
 
+  const addNotification = useCallback((notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    const newNotification: AppNotification = {
+      ...notification,
+      id: new Date().toISOString() + Math.random(),
+      createdAt: new Date(),
+      read: false,
+      variant: notification.variant || 'default',
+    };
+    setNotifications(prev => [newNotification, ...prev].slice(0, 20)); // Keep last 20
+  }, []);
+
+  const markAllAsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
   return (
     <AppContext.Provider value={{
         images,
@@ -111,7 +145,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         sessionCosts,
         updateSessionCost,
-        resetSessionCosts
+        resetSessionCosts,
+        notifications,
+        addNotification,
+        markAllAsRead,
+        clearNotifications
     }}>
       {children}
     </AppContext.Provider>

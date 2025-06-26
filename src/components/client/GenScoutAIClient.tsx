@@ -26,7 +26,6 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star } from 'lucide-react';
@@ -34,7 +33,6 @@ import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
-import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import StreetViewDisplay from './StreetViewDisplay';
@@ -67,8 +65,7 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
 ];
 
 export default function GenScoutAIClient() {
-  const { toast } = useToast();
-  const { addImage, updateSessionCost } = useAppContext();
+  const { addImage, updateSessionCost, addNotification } = useAppContext();
 
   // State Variables
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null);
@@ -197,11 +194,11 @@ export default function GenScoutAIClient() {
         parkingAssessment: "N/A",
         logisticsFeasibility: "N/A"
       });
-      toast({ title: "AI Error", description: "Failed to generate location summary.", variant: "destructive" });
+      addNotification({ title: "AI Error", description: "Failed to generate location summary.", variant: "destructive" });
     } finally {
       setIsLoadingLocationInfo(false);
     }
-  }, [toast, updateSessionCost]);
+  }, [addNotification, updateSessionCost]);
 
   const handleLocationSelect = useCallback((
       name: string,
@@ -231,12 +228,12 @@ export default function GenScoutAIClient() {
   const handleLocationSearch = useCallback((query?: string) => {
     const effectiveQuery = query || searchInput;
     if (!effectiveQuery.trim()) {
-      toast({ title: "Search Empty", description: "Please enter a location to search.", variant: "default" });
+      addNotification({ title: "Search Empty", description: "Please enter a location to search." });
       return;
     }
 
     if (!googleMapsApiLoaded || typeof window.google === 'undefined' || !window.google.maps || !window.google.maps.Geocoder) {
-        toast({ title: "API Not Ready", description: "Google Maps API is not loaded yet for geocoding.", variant: "default" });
+        addNotification({ title: "API Not Ready", description: "Google Maps API is not loaded yet for geocoding." });
         return;
     }
 
@@ -258,12 +255,12 @@ export default function GenScoutAIClient() {
             } else if (status === window.google.maps.GeocoderStatus.INVALID_REQUEST) {
                 userMessage = `The location search for "${effectiveQuery}" was invalid. Please check your search term.`;
             }
-            toast({ title: "Geocoding Error", description: userMessage, variant: "destructive" });
+            addNotification({ title: "Geocoding Error", description: userMessage, variant: "destructive" });
             setMarkerPosition(null);
             setLocationInfo(null);
         }
     });
-  }, [searchInput, googleMapsApiLoaded, toast, handleLocationSelect, updateSessionCost]);
+  }, [searchInput, googleMapsApiLoaded, addNotification, handleLocationSelect, updateSessionCost]);
 
   const handleAutocompletePlaceSelected = useCallback((place: google.maps.places.PlaceResult) => {
     const placeName = place.formatted_address || place.name;
@@ -286,10 +283,10 @@ export default function GenScoutAIClient() {
     } else {
       setIsStreetViewReady(false);
       if (status === 'ERROR' && message) {
-        toast({ title: "Street View Error", description: message, variant: "destructive" });
+        addNotification({ title: "Street View Error", description: message, variant: "destructive" });
       }
     }
-  }, [toast]);
+  }, [addNotification]);
 
   const handleTimeOfDayChange = useCallback(async (value: number, isDialogControl: boolean = false) => {
     if (isDialogControl) {
@@ -315,7 +312,7 @@ export default function GenScoutAIClient() {
       } else {
         setGeneratedTimePrompt('Error');
       }
-      toast({ title: "AI Error", description: "Failed to generate time-of-day token.", variant: "destructive" });
+      addNotification({ title: "AI Error", description: "Failed to generate time-of-day token.", variant: "destructive" });
     } finally {
       if (isDialogControl) {
         setIsLoadingDialogTimePrompt(false);
@@ -323,7 +320,7 @@ export default function GenScoutAIClient() {
         setIsLoadingTimePrompt(false);
       }
     }
-  }, [toast, updateSessionCost]);
+  }, [addNotification, updateSessionCost]);
 
   const handleWeatherConditionChange = useCallback(async (value: string, isDialogControl: boolean = false) => {
     if (!value || value === "none") {
@@ -359,7 +356,7 @@ export default function GenScoutAIClient() {
       } else {
         setGeneratedWeatherPrompt('Error');
       }
-      toast({ title: "AI Error", description: "Failed to generate weather prompt.", variant: "destructive" });
+      addNotification({ title: "AI Error", description: "Failed to generate weather prompt.", variant: "destructive" });
     } finally {
       if (isDialogControl) {
         setIsLoadingDialogWeatherPrompt(false);
@@ -367,7 +364,7 @@ export default function GenScoutAIClient() {
         setIsLoadingWeatherPrompt(false);
       }
     }
-  }, [toast, updateSessionCost]);
+  }, [addNotification, updateSessionCost]);
 
 
   const handleMapClick = useCallback((latLng: google.maps.LatLngLiteral) => {
@@ -414,7 +411,7 @@ export default function GenScoutAIClient() {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) {
-            toast({ title: "Download Failed", description: "Could not create drawing context for watermark.", variant: "destructive"});
+            addNotification({ title: "Download Failed", description: "Could not create drawing context for watermark.", variant: "destructive"});
             return;
           }
 
@@ -452,44 +449,42 @@ export default function GenScoutAIClient() {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          toast({ title: "Image Downloading", description: "Your watermarked cinematic shot is being downloaded."});
+          addNotification({ title: "Image Downloading", description: "Your watermarked cinematic shot is being downloaded."});
         };
 
         image.onerror = () => {
-           toast({ title: "Download Failed", description: "Could not load image for watermarking. Check browser console for CORS issues if image is from an external URL.", variant: "destructive"});
+           addNotification({ title: "Download Failed", description: "Could not load image for watermarking. Check browser console for CORS issues if image is from an external URL.", variant: "destructive"});
         }
 
       } catch (error) {
         console.error("Error during image watermarking and download:", error);
-        toast({ title: "Download Failed", description: "An error occurred while preparing the image for download.", variant: "destructive"});
+        addNotification({ title: "Download Failed", description: "An error occurred while preparing the image for download.", variant: "destructive"});
       }
     } else {
-      toast({ title: "Download Failed", description: "No image available to download.", variant: "destructive"});
+      addNotification({ title: "Download Failed", description: "No image available to download.", variant: "destructive"});
     }
-  }, [generatedCinematicImage, toast]);
+  }, [generatedCinematicImage, addNotification]);
 
   const handleGenerate360Image = useCallback(() => {
-     toast({
+     addNotification({
       title: "360 Image Generation (Conceptual)",
       description: "Generating 360-degree equirectangular images for VR is an advanced feature planned for future updates. It would likely require a specialized AI model and a dedicated Genkit flow.",
-      duration: 10000,
     });
-  }, [toast]);
+  }, [addNotification]);
 
   const handleViewIn360VR = useCallback(() => {
-    toast({
+    addNotification({
       title: "View in 360/VR (Conceptual)",
       description: "Displaying the image in a 360/VR viewer is planned for when 360 image generation is available. This would involve integrating a VR-capable image viewer component.",
-      duration: 10000,
     });
-  }, [toast]);
+  }, [addNotification]);
 
 
   const handleFilmingLocationSelect = useCallback((location: FilmingLocation) => {
     setSearchInput(location.address || location.locationName);
     handleLocationSelect(location.address || location.locationName, location.coordinates);
-    toast({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.`, variant: "default" });
-  }, [handleLocationSelect, toast]);
+    addNotification({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.` });
+  }, [handleLocationSelect, addNotification]);
 
   useEffect(() => {
     setIsClient(true);
@@ -508,12 +503,12 @@ export default function GenScoutAIClient() {
         setGoogleMapsApiLoaded(true);
       }).catch(e => {
         console.error("Error loading Google Maps API:", e);
-        toast({ title: "API Load Error", description: `Failed to load Google Maps API: ${e.message || 'Unknown error'}`, variant: "destructive"});
+        addNotification({ title: "API Load Error", description: `Failed to load Google Maps API: ${e.message || 'Unknown error'}`, variant: "destructive"});
       });
     } else {
       console.warn("Google Maps API Key is not configured or is invalid. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
     }
-  }, [toast]);
+  }, [addNotification]);
 
   useEffect(() => {
     if (googleMapsApiLoaded && searchInputRef.current && !autocompleteRef.current && typeof window.google !== 'undefined' && window.google.maps && window.google.maps.places) {
@@ -586,7 +581,7 @@ export default function GenScoutAIClient() {
     } catch (e) {
       console.error("Error fetching time prompt in process:", e);
       finalTimeOfDayToken = options.timeOfDayValue >= 6 && options.timeOfDayValue < 18 ? "day" : "night";
-      toast({ title: "AI Error", description: "Failed to get time-of-day token, using simple fallback.", variant: "destructive" });
+      addNotification({ title: "AI Error", description: "Failed to get time-of-day token, using simple fallback.", variant: "destructive" });
     } finally {
       if (currentIsDialog) setIsLoadingDialogTimePrompt(false); else setIsLoadingTimePrompt(false);
     }
@@ -601,7 +596,7 @@ export default function GenScoutAIClient() {
       } catch (e) {
         console.error("Error fetching weather prompt in process:", e);
         finalWeatherConditionPrompt = "";
-        toast({ title: "AI Error", description: "Failed to get weather prompt, using empty.", variant: "destructive" });
+        addNotification({ title: "AI Error", description: "Failed to get weather prompt, using empty.", variant: "destructive" });
       } finally {
         if (currentIsDialog) setIsLoadingDialogWeatherPrompt(false); else setIsLoadingWeatherPrompt(false);
       }
@@ -645,18 +640,17 @@ export default function GenScoutAIClient() {
         });
 
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
-        toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
+        addNotification({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene." });
       } else {
         throw new Error("AI did not return an image.");
       }
     } catch (error) {
       console.error("Error generating AI image:", error);
       setGeneratedCinematicImage(null);
-      toast({
+      addNotification({
           title: "AI Generation Failed",
           description: `Could not generate AI image. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
-          duration: 10000,
       });
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false);
     } finally {
@@ -667,7 +661,7 @@ export default function GenScoutAIClient() {
 
   const handleSnapshot = async () => {
     if (!isStreetViewReady || !streetViewPanoramaRef.current || !googleMapsApiKey) {
-      toast({ title: "Street View Not Ready", description: "Please ensure Street View is loaded for a location and API key is set.", variant: "default"});
+      addNotification({ title: "Street View Not Ready", description: "Please ensure Street View is loaded for a location and API key is set."});
       return;
     }
 
@@ -679,7 +673,7 @@ export default function GenScoutAIClient() {
     if (!panoId || !pov || !googleMapsApiKey) {
         const reason = !panoId ? "Could not retrieve Street View Pano ID." : !pov ? "Could not retrieve Street View Point of View." : "Google Maps API Key is missing.";
         console.warn("Snapshot Error:", reason, {panoId, povExists: !!pov, googleMapsApiKeyExists: !!googleMapsApiKey});
-        toast({ title: "Snapshot Error", description: `${reason} Please try re-searching the location, adjust view or check API key configuration.`, variant: "destructive" });
+        addNotification({ title: "Snapshot Error", description: `${reason} Please try re-searching the location, adjust view or check API key configuration.`, variant: "destructive" });
         return;
     }
 
@@ -690,23 +684,24 @@ export default function GenScoutAIClient() {
     const staticImageUrl = `https://maps.googleapis.com/maps/api/streetview?pano=${panoId}&size=800x450&heading=${pov.heading}&pitch=${pov.pitch}&fov=${fov}&key=${googleMapsApiKey}`;
 
     try {
+      updateSessionCost('streetViewSnapshots');
+      
       const response = await fetch(staticImageUrl);
       if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Static Street View API Error Response:", errorBody, "URL:", staticImageUrl);
-        let friendlyError = `Static Street View API request failed: ${response.status} ${response.statusText}`;
-        if (response.status === 403) {
-            friendlyError = "A 403 error often means the 'Street View Static API' is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
-        } else if (response.status === 400 && errorBody.includes(" reglerUrl is invalid")) {
-            friendlyError = "The Pano ID might be invalid or expired. Try re-searching the location.";
-        } else if (response.status === 400) {
-             friendlyError = `Bad request to Street View API. Check parameters. Details: ${errorBody.substring(0,100)}`;
-        } else if (response.status === 500 || response.status === 503) {
-            friendlyError = "Google Street View API seems to be temporarily unavailable. Please try again later.";
-        }
-        throw new Error(friendlyError);
+          const errorBody = await response.text();
+          console.error("Static Street View API Error Response:", errorBody, "URL:", staticImageUrl);
+          let friendlyError = `Static Street View API request failed: ${response.status} ${response.statusText}`;
+          if (response.status === 403) {
+              friendlyError = "A 403 error often means the 'Street View Static API' is not enabled for your API key, or there's a billing issue. Please check your Google Cloud Console.";
+          } else if (response.status === 400 && errorBody.includes(" reglerUrl is invalid")) {
+              friendlyError = "The Pano ID might be invalid or expired. Try re-searching the location.";
+          } else if (response.status === 400) {
+              friendlyError = `Bad request to Street View API. Check parameters. Details: ${errorBody.substring(0,100)}`;
+          } else if (response.status === 500 || response.status === 503) {
+              friendlyError = "Google Street View API seems to be temporarily unavailable. Please try again later.";
+          }
+          throw new Error(friendlyError);
       }
-      updateSessionCost('streetViewSnapshots');
       const blob = await response.blob();
       const base64data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
@@ -737,11 +732,10 @@ export default function GenScoutAIClient() {
     } catch (error) {
       console.error("Error fetching/processing Street View snapshot:", error);
       setLastBaseImageSource(null);
-      toast({
+      addNotification({
           title: "Street View Snapshot Failed",
           description: `Could not fetch or process Street View image. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
-          duration: 10000,
       });
       if (isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(false);
     }
@@ -749,7 +743,7 @@ export default function GenScoutAIClient() {
 
   const handlePlacePhotoSelect = async (photo: google.maps.places.PlacePhoto) => {
     if (anyOperationInProgress) return;
-    toast({ title: "Preparing Photo...", description: "Using selected image with AI." });
+    addNotification({ title: "Preparing Photo...", description: "Using selected image with AI." });
 
     const imageUrl = photo.getUrl({ maxWidth: 800 });
 
@@ -775,7 +769,7 @@ export default function GenScoutAIClient() {
 
     } catch (error) {
       console.error("Error processing place photo:", error);
-      toast({
+      addNotification({
           title: "Photo Processing Failed",
           description: `Could not use the selected photo. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
@@ -785,12 +779,12 @@ export default function GenScoutAIClient() {
 
   const handleRegenerateFromDialog = async () => {
     if (!lastBaseImageSource) {
-      toast({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
+      addNotification({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
       return;
     }
     if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
-    toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
+    addNotification({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings..." });
     await processSnapshotAndGenerateAI(lastBaseImageSource, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
@@ -802,16 +796,16 @@ export default function GenScoutAIClient() {
 
   const handleModifyAndRegenerateFromDialog = async () => {
     if (!lastBaseImageSource) {
-      toast({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
+      addNotification({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
       return;
     }
     if (!modificationPrompt.trim()) {
-      toast({ title: "Modification Empty", description: "Please enter a modification instruction.", variant: "default" });
+      addNotification({ title: "Modification Empty", description: "Please enter a modification instruction." });
       return;
     }
     if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
-    toast({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings...", variant: "default" });
+    addNotification({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings..." });
     await processSnapshotAndGenerateAI(lastBaseImageSource, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
@@ -824,14 +818,14 @@ export default function GenScoutAIClient() {
 
   const handleGenerateSceneVariations = async () => {
     if (!lastBaseImageSource) {
-      toast({ title: "Error", description: "No base image available for variations.", variant: "destructive" });
+      addNotification({ title: "Error", description: "No base image available for variations.", variant: "destructive" });
       return;
     }
     if (isGeneratingVariations || isGeneratingCinematicImage) return;
 
     setIsGeneratingVariations(true);
     setMoodBoardImages([]); 
-    toast({ title: "Generating Variations", description: "AI is creating scene variations...", variant: "default" });
+    addNotification({ title: "Generating Variations", description: "AI is creating scene variations..." });
 
     const variationPrompts = [
       { shotDirection: "a slightly different camera angle of the current view, perhaps panned left or right slightly", modificationInstruction: "Show a nuanced variation of the primary scene." },
@@ -864,7 +858,7 @@ export default function GenScoutAIClient() {
         }
       } catch (error) {
         console.error(`Error generating variation ${i + 1}:`, error);
-        toast({
+        addNotification({
           title: `Variation ${i + 1} Failed`,
           description: `Could not generate one of the AI image variations. ${error instanceof Error ? error.message : String(error)}`,
           variant: "destructive",
@@ -873,9 +867,9 @@ export default function GenScoutAIClient() {
     }
 
     if (generatedVariations.length > 0) {
-      toast({ title: "Variations Generated", description: `${generatedVariations.length} scene variations created.`, variant: "default" });
+      addNotification({ title: "Variations Generated", description: `${generatedVariations.length} scene variations created.` });
     } else if (generatedVariations.length === 0 && variationPrompts.length > 0) {
-       toast({ title: "No Variations Generated", description: "AI could not produce any scene variations this time.", variant: "default" });
+       addNotification({ title: "No Variations Generated", description: "AI could not produce any scene variations this time." });
     }
     setIsGeneratingVariations(false);
   };
@@ -1520,5 +1514,3 @@ export default function GenScoutAIClient() {
       </div>
   );
 }
-
-    
