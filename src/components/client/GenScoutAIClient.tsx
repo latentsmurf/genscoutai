@@ -412,7 +412,7 @@ export default function GenScoutAIClient() {
 
         image.onload = () => {
           const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('d');
+          const ctx = canvas.getContext('2d');
           if (!ctx) {
             toast({ title: "Download Failed", description: "Could not create drawing context for watermark.", variant: "destructive"});
             return;
@@ -1045,17 +1045,17 @@ export default function GenScoutAIClient() {
 
           {!isUiHidden && (
             <Card>
-              <CardHeader className="p-4 flex-row items-center justify-between">
+              <CardHeader className="p-4 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                    <CardTitle className="text-lg">Viewport</CardTitle>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 w-full justify-end sm:w-auto">
                   <Button
                       variant={currentDisplayMode === 'map' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setCurrentDisplayMode('map')}
                       disabled={!googleMapsApiLoaded || anyOperationInProgress}
-                      className="min-w-[100px]"
+                      className="flex-1 sm:flex-initial"
                     >
                       <MapIcon className="mr-2 h-4 w-4" /> Map
                     </Button>
@@ -1064,7 +1064,7 @@ export default function GenScoutAIClient() {
                       size="sm"
                       onClick={() => setCurrentDisplayMode('streetview')}
                       disabled={!googleMapsApiLoaded || !locationForStreetView || anyOperationInProgress}
-                      className="min-w-[130px]"
+                      className="flex-1 sm:flex-initial"
                     >
                       <EyeIcon className="mr-2 h-4 w-4" /> Street View
                     </Button>
@@ -1076,7 +1076,7 @@ export default function GenScoutAIClient() {
                         setCurrentMapZoom(16);
                       }}
                       disabled={!googleMapsApiLoaded || !locationForStreetView || anyOperationInProgress}
-                      className="min-w-[140px]"
+                      className="flex-1 sm:flex-initial"
                     >
                       <LayoutDashboard className="mr-2 h-4 w-4" /> Scene Planner
                   </Button>
@@ -1512,11 +1512,11 @@ export default function GenScoutAIClient() {
                         <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
                     )}
                     </Button>
-                    <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                    <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress} className="w-full sm:w-auto">
                     <Download className="mr-2 h-4 w-4" />
                     Download
                     </Button>
-                    <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                    <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress} className="w-full sm:w-auto">
                     <Orbit className="mr-2 h-4 w-4" />
                     View in 360/VR
                     </Button>
