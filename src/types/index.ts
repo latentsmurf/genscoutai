@@ -10,6 +10,19 @@ export interface FilmingLocation {
     lng: number;
   };
   year: number;
-  imageUrl: string; // Changed from imageHint
+  imageUrl: string;
 }
 
+export interface GeneratedImage {
+  id: string;
+  src: string;
+  prompt: string;
+  params: {
+    lens: string;
+    time: string;
+    weather: string;
+    direction:string;
+    location: string;
+  };
+  createdAt: Date;
+}

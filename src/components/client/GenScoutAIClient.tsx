@@ -3,18 +3,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarInset,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -54,6 +42,7 @@ import MapViewDisplay from './MapViewDisplay';
 import type { FilmingLocation } from '@/types';
 import { sampleFilmingLocations } from '@/data/filming-locations';
 import { cn } from '@/lib/utils';
+import { useAppContext } from '@/context/AppContext';
 
 const schematicMapStyles: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
@@ -103,6 +92,7 @@ const initialSessionCosts: SessionCosts = {
 
 export default function GenScoutAIClient() {
   const { toast } = useToast();
+  const { addImage } = useAppContext();
 
   // State Variables
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null);
@@ -506,32 +496,7 @@ export default function GenScoutAIClient() {
       });
     } else {
       console.warn("Google Maps API Key is not configured or is invalid. Please set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY in your .env file.");
-      toast({
-        title: "Google Maps API Key Configuration Critical",
-        description: (
-          <div>
-            <p className="font-semibold">Street View, Map &amp; Autocomplete WILL FAIL without proper API setup.</p>
-            <p className="mt-2">Please ensure the following for the Google Cloud Project tied to your API key:</p>
-            <ol className="list-decimal list-inside space-y-1 mt-2 text-sm">
-              <li>Your <strong>`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`</strong> in the <strong>`.env`</strong> file is correct and valid.</li>
-              <li>The following APIs are <strong>ENABLED</strong> in Google Cloud Console:
-                <ul className="list-disc list-inside pl-4 font-medium">
-                  <li>Maps JavaScript API</li>
-                  <li>Street View Static API</li>
-                  <li>Places API (New)</li>
-                  <li className="text-destructive"><strong>IMPORTANT for Autocomplete: The LEGACY "Places API" must ALSO be enabled. This is separate from "Places API (New)". The error "Legacy API Not Activated" directly points to this.</strong></li>
-                  <li>Geocoding API (often used with Places)</li>
-                </ul>
-              </li>
-              <li>Billing is enabled and active for your Google Cloud project.</li>
-            </ol>
-             <p className="mt-2 text-xs italic">The error "Legacy API Not Activated" from Google indicates the legacy "Places API" is not active. Enabling "Places API (New)" alone is often insufficient for the standard Autocomplete widget which is part of the Maps JavaScript API.</p>
-             <p className="mt-2 text-xs italic">The "powered by Google" logo in Autocomplete suggestions is a mandatory branding requirement by Google and cannot be removed.</p>
-          </div>
-        ),
-        variant: "destructive",
-        duration: 30000,
-      });
+      // Toast has been removed from here to avoid showing on every page load for users who haven't set it up yet
     }
   }, [toast]);
 
@@ -649,11 +614,25 @@ export default function GenScoutAIClient() {
       updateSessionCost('geminiImageGenerations', ESTIMATED_COSTS.GEMINI_IMAGE_GENERATION);
       if (result.generatedImageDataUri) {
         setGeneratedCinematicImage(result.generatedImageDataUri);
-        setSnapshotOverlays({
+        const overlayData = {
             lens: options.lens,
             time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
+        };
+        setSnapshotOverlays(overlayData);
+        
+        addImage({
+            src: result.generatedImageDataUri,
+            prompt: `Cinematic shot of ${aiInput.sceneDescription}`,
+            params: {
+                location: aiInput.sceneDescription || 'Unknown Location',
+                lens: aiInput.focalLength,
+                direction: aiInput.shotDirection,
+                time: finalTimeOfDayToken,
+                weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear'
+            }
         });
+
         if (!isGeneratedImageDialogOpen) setIsGeneratedImageDialogOpen(true);
         toast({ title: "Cinematic Shot Generated!", description: "AI has reimagined your scene.", variant: "default" });
       } else {
@@ -866,259 +845,10 @@ export default function GenScoutAIClient() {
   const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      {!isUiHidden && (
-        <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
-          <SidebarHeader className="p-4 border-b border-sidebar-border">
-            <div className="flex items-center gap-2">
-              <Camera className="w-8 h-8 text-primary" />
-              <h1 className="text-xl font-semibold text-sidebar-foreground">GenScoutAI</h1>
-            </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <ScrollArea className="h-full">
-              <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="w-full p-0">
-                <TabsList className="grid w-full grid-cols-2 mb-2 sticky top-0 bg-sidebar z-10 p-2">
-                  <TabsTrigger value="custom-search" className="text-[11px] px-1 py-1.5">
-                    <Search className="w-3 h-3 mr-1" />Custom Search
-                  </TabsTrigger>
-                  <TabsTrigger value="famous-locations" className="text-[11px] px-1 py-1.5">
-                    <Film className="w-3 h-3 mr-1" />Famous Locations
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="custom-search" className="p-4 pt-0 space-y-4">
-                  <SidebarGroup>
-                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70">Location</SidebarGroupLabel>
-                    <SidebarGroupContent className="space-y-2 mt-2">
-                      <div className="flex space-x-2">
-                        <Input
-                          ref={searchInputRef}
-                          type="text"
-                          placeholder="e.g., Eiffel Tower, Paris"
-                          value={searchInput}
-                          onChange={(e) => setSearchInput(e.target.value)}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              if (autocompleteRef.current) {
-                                  const pacSelectFirst = () => {
-                                  const firstResult = document.querySelector(".pac-item");
-                                  if (firstResult && (firstResult as HTMLElement).textContent) {
-                                      (firstResult as HTMLElement).click();
-                                  } else {
-                                      handleLocationSearch((e.target as HTMLInputElement).value);
-                                  }
-                                  };
-                                  setTimeout(pacSelectFirst, 150);
-                              } else {
-                                  handleLocationSearch((e.target as HTMLInputElement).value);
-                              }
-                            }
-                          }}
-                          className="text-sm"
-                          disabled={!googleMapsApiKey || !googleMapsApiLoaded}
-                        />
-                        <Button onClick={() => handleLocationSearch()} size="sm" aria-label="Search location" disabled={!googleMapsApiKey || !googleMapsApiLoaded || !searchInput.trim()}>
-                          <Search className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      {locationForStreetView && !locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Current Target: {locationForStreetView}</p>}
-                      {locationForStreetView && locationForStreetView.startsWith('coords:') && <p className="text-xs text-muted-foreground">Target: Custom Coordinates</p>}
-                      {!googleMapsApiKey && <p className="text-xs text-destructive mt-1">Google Maps API Key needed for location features.</p>}
-                     </SidebarGroupContent>
-                  </SidebarGroup>
-
-                  {isLoadingLocationInfo && (
-                    <Card className="mt-0">
-                      <CardHeader className="flex flex-row items-center gap-2 p-3">
-                        <InfoIcon className="w-4 h-4 text-primary animate-spin" />
-                        <CardTitle className="text-sm">Fetching Location Insights...</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-3 pt-0 space-y-3">
-                        <div>
-                          <Skeleton className="h-4 w-1/3 mb-1.5" />
-                          <Skeleton className="h-3.5 w-full" />
-                          <Skeleton className="h-3.5 w-5/6 mt-1" />
-                        </div>
-                        <div>
-                          <Skeleton className="h-4 w-1/4 mb-1.5" />
-                          <Skeleton className="h-3.5 w-full" />
-                        </div>
-                        <div>
-                          <Skeleton className="h-4 w-1/3 mb-1.5" />
-                          <Skeleton className="h-3.5 w-full" />
-                        </div>
-                         <div>
-                          <Skeleton className="h-4 w-1/3 mb-1.5" />
-                          <Skeleton className="h-3.5 w-full" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                  {locationInfo && !isLoadingLocationInfo && (
-                    <Card className="mt-0 bg-secondary/30">
-                      <CardHeader className="flex flex-row items-center gap-2 p-3">
-                        <InfoIcon className="w-4 h-4 text-primary" />
-                        <CardTitle className="text-sm">Insights for {locationForStreetView.startsWith('coords:') ? 'this area' : locationForStreetView}</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-3 pt-0 space-y-3 text-xs text-foreground">
-                        <p>{locationInfo.summary}</p>
-
-                        <Separator className="my-2 bg-border/50"/>
-
-                        <div>
-                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><FileText className="w-3.5 h-3.5 text-primary/80"/>Permitting Info</h4>
-                          <p className="text-muted-foreground">{locationInfo.permittingInfo}</p>
-                        </div>
-
-                        <Separator className="my-2 bg-border/50"/>
-
-                        <div>
-                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><ParkingCircle className="w-3.5 h-3.5 text-primary/80"/>Parking Assessment</h4>
-                          <p className="text-muted-foreground">{locationInfo.parkingAssessment}</p>
-                        </div>
-
-                        <Separator className="my-2 bg-border/50"/>
-
-                        <div>
-                          <h4 className="font-semibold mb-1 flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-primary/80"/>Logistics Feasibility</h4>
-                          <p className="text-muted-foreground">{locationInfo.logisticsFeasibility}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="famous-locations" className="p-4 pt-0">
-                  <SidebarGroup>
-                    <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-1">
-                      <DatabaseIcon className="w-3.5 h-3.5" /> Search Filming Locations
-                    </SidebarGroupLabel>
-                    <Input
-                        type="text"
-                        placeholder="Search movie, scene, location..."
-                        value={filmingLocationSearchTerm}
-                        onChange={(e) => setFilmingLocationSearchTerm(e.target.value)}
-                        className="text-sm my-2"
-                        disabled={!googleMapsApiLoaded}
-                      />
-                  </SidebarGroup>
-                  <ScrollArea className="h-[calc(100vh-220px)] pr-2">
-                    <div className="space-y-3">
-                      {filteredFilmingLocations.length > 0 ? filteredFilmingLocations.map(loc => (
-                        <Card key={loc.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleFilmingLocationSelect(loc)}>
-                          <CardHeader className="p-3">
-                            <CardTitle className="text-sm font-semibold">{loc.movieTitle} <span className="text-xs font-normal text-muted-foreground">({loc.year})</span></CardTitle>
-                            <CardDescription className="text-xs">{loc.locationName}</CardDescription>
-                          </CardHeader>
-                          <CardContent className="p-3 pt-0">
-                            <Image
-                                src={loc.imageUrl}
-                                alt={`${loc.movieTitle} - ${loc.locationName}`}
-                                width={300}
-                                height={150}
-                                className="w-full h-auto rounded-sm object-cover mb-2"
-                                unoptimized={loc.imageUrl.startsWith('http')}
-                              />
-                            <p className="text-xs text-muted-foreground leading-tight">{loc.sceneDescription}</p>
-                          </CardContent>
-                        </Card>
-                      )) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">No locations match your search.</p>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
-              </Tabs>
-              <Separator className="my-4 mx-2" />
-              <SidebarGroup className="px-2 pb-2">
-                <SidebarGroupLabel className="text-xs font-medium text-sidebar-foreground/70 flex items-center gap-2">
-                  <DollarSign className="w-3.5 h-3.5" />
-                  Usage & Cost Monitoring
-                </SidebarGroupLabel>
-                <SidebarGroupContent className="mt-2">
-                  <Alert variant="default" className="p-3">
-                      <AlertTitle className="text-sm font-semibold">Monitor Your API Costs</AlertTitle>
-                      <AlertDescription className="text-xs space-y-1.5 mt-1">
-                          <p>This application utilizes cloud services which incur costs based on usage:</p>
-                          <ul className="list-disc list-inside space-y-0.5">
-                              <li><strong>Google Cloud Platform:</strong>
-                                  <ul className="list-disc list-inside pl-4">
-                                      <li>Maps JavaScript API, Street View Static API, Places API, Geocoding API.</li>
-                                      <li>Vertex AI (hosting Gemini models for text and image generation via Genkit).</li>
-                                  </ul>
-                              </li>
-                          </ul>
-                          <p className="mt-1.5">For detailed billing, API usage metrics, and to set up <strong>budget alerts (highly recommended)</strong>, please refer to your respective cloud provider dashboards:</p>
-                          <ul className="list-disc pl-4 space-y-0.5">
-                              <li>
-                                  Google Cloud Console: <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">console.cloud.google.com/billing</a>
-                              </li>
-                          </ul>
-                          <p className="mt-1.5">Estimated pricing can be found at:</p>
-                           <ul className="list-disc pl-4 space-y-0.5">
-                              <li>
-                              Google Maps: <a href="https://cloud.google.com/maps-platform/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/maps-platform/pricing</a>
-                              </li>
-                              <li>
-                              Vertex AI (Gemini): <a href="https://cloud.google.com/vertex-ai/pricing" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">cloud.google.com/vertex-ai/pricing</a>
-                              </li>
-                          </ul>
-                      </AlertDescription>
-                  </Alert>
-                  <Card className="mt-4 bg-background/50">
-                    <CardHeader className="p-3">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <TimerIcon className="w-4 h-4" />
-                        Current Session Estimated Costs
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Illustrative estimates only. Resets on page refresh.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-3 text-xs space-y-1">
-                      <div className="flex justify-between"><span>Geocoding/Places API:</span> <span>{sessionCosts.geocodingRequests}</span></div>
-                      <div className="flex justify-between"><span>Street View Static API:</span> <span>{sessionCosts.streetViewSnapshots}</span></div>
-                      <div className="flex justify-between"><span>Gemini Text Generations:</span> <span>{sessionCosts.geminiTextGenerations}</span></div>
-                      <div className="flex justify-between"><span>Gemini Image Generations:</span> <span>{sessionCosts.geminiImageGenerations}</span></div>
-                      <Separator className="my-2" />
-                      <div className="flex justify-between font-semibold text-sm">
-                        <span>Total Estimated:</span>
-                        <span>~${sessionCosts.totalEstimatedCost.toFixed(4)}</span>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-3 text-xs"
-                        onClick={() => setSessionCosts(initialSessionCosts)}
-                      >
-                        <RotateCcw className="w-3 h-3 mr-1.5" />
-                        Reset Session Estimates
-                      </Button>
-                      <p className="text-xs text-muted-foreground pt-2 italic">
-                        <strong>Disclaimer:</strong> These are highly simplified, illustrative estimates for the current browser session only and DO NOT represent actual costs or official pricing. For accurate billing information, always refer to your Google Cloud dashboard. Prices are subject to change by the providers.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </ScrollArea>
-          </SidebarContent>
-          <SidebarFooter className="p-4 border-t border-sidebar-border">
-            <SidebarTrigger className="ml-auto md:hidden">
-              <Camera className="w-6 h-6" />
-            </SidebarTrigger>
-            <p className="text-xs text-sidebar-foreground/70 hidden md:block text-center">
-              GenScoutAI &copy; {new Date().getFullYear()}
-            </p>
-          </SidebarFooter>
-        </Sidebar>
-      )}
-
-      <SidebarInset
+      <div
         className={cn(
-          "flex flex-col relative",
-          isUiHidden && currentDisplayMode === 'streetview' ? "p-0" : "p-2 md:p-4",
+          "flex flex-col relative h-full",
+          isUiHidden && currentDisplayMode === 'streetview' ? "p-0" : "md:p-4",
           !isUiHidden && "gap-4"
         )}
       >
@@ -1135,9 +865,15 @@ export default function GenScoutAIClient() {
           )}
 
           {!isUiHidden && (
-            <Card>
+            <Card className="m-4 mb-0 md:m-0 md:mb-0">
               <CardHeader className="pb-4 pt-4 px-4 flex-row items-center justify-between">
-                <CardTitle className="text-lg">View Mode</CardTitle>
+                <div className="flex items-center gap-4">
+                  <Compass className="w-8 h-8 hidden md:block" />
+                  <div>
+                    <CardTitle className="text-lg">Scout Mode</CardTitle>
+                    <CardDescription className="text-sm">Find, configure, and visualize your scene.</CardDescription>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <Button
                       variant={currentDisplayMode === 'map' ? 'default' : 'outline'}
@@ -1204,7 +940,7 @@ export default function GenScoutAIClient() {
           )}
 
           {!isUiHidden && currentDisplayMode === 'streetview' && (
-            <Card>
+            <Card className="m-4 my-0 md:m-0 md:my-0">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-lg">Shot Configuration</CardTitle>
               </CardHeader>
@@ -1324,7 +1060,7 @@ export default function GenScoutAIClient() {
 
           <div
             className={cn(
-              "relative",
+              "relative m-4 mt-0 md:m-0 flex-1",
               isUiHidden && currentDisplayMode === 'streetview'
                 ? "fixed inset-0 z-0 w-screen h-screen"
                 : "flex-grow min-h-[300px] sm:min-h-[400px] md:min-h-0"
@@ -1371,255 +1107,253 @@ export default function GenScoutAIClient() {
               />
             )}
           </div>
-      </SidebarInset>
 
-      <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
-          if (anyOperationInProgress && !open) return;
-          setIsGeneratedImageDialogOpen(open);
-          if (!open) setMoodBoardImages([]); // Clear variations when dialog closes
-      }}>
-        <DialogContent className="max-w-3xl w-full p-0">
-          <DialogHeader className="p-4 border-b">
-            <DialogTitle>Generated Cinematic Shot</DialogTitle>
-            <DialogDescription>
-              AI-reimagined scene. Adjust parameters to refine or modify.
-            </DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="max-h-[calc(100vh-200px)]">
-            <div className="p-4 space-y-4">
-                {isGeneratingCinematicImage && !generatedCinematicImage && (
-                    <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
-                        <Skeleton className="w-full h-full rounded-lg" />
-                        <p className="absolute text-foreground">
-                          Generating AI Image...
-                        </p>
-                    </div>
-                )}
-                {isGeneratingCinematicImage && generatedCinematicImage && (
-                    <div className="relative">
-                    <Image
-                            key={generatedCinematicImage + "-loading"}
-                            src={generatedCinematicImage}
-                            alt="Previous AI Cinematic Shot / Being modified"
-                            width={800}
-                            height={450}
-                            className="object-contain rounded-lg w-full h-auto opacity-50"
-                            unoptimized={generatedCinematicImage.startsWith('http')}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
-                            <Loader2 className="w-12 h-12 text-white animate-spin" />
-                            <p className="ml-2 text-white">
-                              Applying modifications...
+        <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
+            if (anyOperationInProgress && !open) return;
+            setIsGeneratedImageDialogOpen(open);
+            if (!open) setMoodBoardImages([]); // Clear variations when dialog closes
+        }}>
+            <DialogContent className="max-w-3xl w-full p-0">
+            <DialogHeader className="p-4 border-b">
+                <DialogTitle>Generated Cinematic Shot</DialogTitle>
+                <DialogDescription>
+                AI-reimagined scene. Adjust parameters to refine or modify.
+                </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[calc(100vh-200px)]">
+                <div className="p-4 space-y-4">
+                    {isGeneratingCinematicImage && !generatedCinematicImage && (
+                        <div className="w-full aspect-video flex items-center justify-center bg-muted rounded-lg">
+                            <Skeleton className="w-full h-full rounded-lg" />
+                            <p className="absolute text-foreground">
+                            Generating AI Image...
                             </p>
                         </div>
-                    </div>
-                )}
-                {!isGeneratingCinematicImage && generatedCinematicImage && (
-                <div className="relative">
-                    <Image
-                    key={generatedCinematicImage}
-                    src={generatedCinematicImage}
-                    alt="AI Cinematic Shot"
-                    width={800}
-                    height={450}
-                    className="object-contain rounded-lg w-full h-auto"
-                    priority
-                    unoptimized={generatedCinematicImage.startsWith('http')}
-                    />
-                    {snapshotOverlays && (
-                    <>
-                        <div className="absolute bottom-4 left-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm backdrop-blur-sm">
-                        <p className="font-semibold">GenScoutAI</p>
-                        {snapshotOverlays.lens && <p>Lens: {snapshotOverlays.lens}</p>}
-                        </div>
-                        <div className="absolute bottom-4 right-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm text-right backdrop-blur-sm">
-                        {snapshotOverlays.time && <p>Time: {snapshotOverlays.time}</p>}
-                        {snapshotOverlays.weather && <p>Weather: {snapshotOverlays.weather}</p>}
-                        </div>
-                    </>
                     )}
-                </div>
-                )}
-                {!isGeneratingCinematicImage && !generatedCinematicImage && (
-                    <div className="w-full aspect-video flex flex-col items-center justify-center bg-muted rounded-lg">
-                        <ImageIcon className="w-16 h-16 text-primary/50" />
-                        <p className="ml-2 text-muted-foreground">No image generated yet.</p>
-                    </div>
-                )}
-
-                <div className="mt-4 space-y-4 pt-4 border-t">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
-                                <Focus className="w-4 h-4" /> Camera Lens
-                            </Label>
-                            <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={anyOperationInProgress}>
-                                <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
-                                    <SelectValue placeholder="Select lens" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {cameraLenses.map(lens => (
-                                    <SelectItem key={lens} value={lens}>{lens}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
-                                <Film className="w-4 h-4" /> Shot Direction
-                            </Label>
-                            <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={anyOperationInProgress}>
-                                <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
-                                    <SelectValue placeholder="Select shot direction" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {shotDirectionOptions.map(option => (
-                                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="md:col-span-2">
-                            <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
-                                <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
-                                {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                            </Label>
-                            <Slider
-                                id="dialog-time-of-day"
-                                min={0}
-                                max={23}
-                                step={1}
-                                value={[dialogTimeOfDay]}
-                                onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
-                                className="my-2"
-                                disabled={anyOperationInProgress || isLoadingDialogTimePrompt}
+                    {isGeneratingCinematicImage && generatedCinematicImage && (
+                        <div className="relative">
+                        <Image
+                                key={generatedCinematicImage + "-loading"}
+                                src={generatedCinematicImage}
+                                alt="Previous AI Cinematic Shot / Being modified"
+                                width={800}
+                                height={450}
+                                className="object-contain rounded-lg w-full h-auto opacity-50"
+                                unoptimized={generatedCinematicImage.startsWith('http')}
                             />
-                            {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
-                            <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                                <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
+                                <Loader2 className="w-12 h-12 text-white animate-spin" />
+                                <p className="ml-2 text-white">
+                                Applying modifications...
+                                </p>
                             </div>
-                            )}
                         </div>
-                        <div>
-                            <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
-                                <Bot className="w-4 h-4" /> Weather
-                                {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                            </Label>
-                            <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={anyOperationInProgress || isLoadingDialogWeatherPrompt}>
-                                <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
-                                <SelectValue placeholder="Select weather" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
-                                <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
-                                <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
-                                <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
-                                <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
-                                </SelectContent>
-                            </Select>
-                            {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
-                            <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                                <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
-                            </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="space-y-2 pt-4 border-t">
-                        <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
-                        <MessageSquarePlus className="w-4 h-4" />
-                        Text Modification (Gemini)
-                        </Label>
-                        <Textarea
-                        id="modification-prompt"
-                        placeholder="e.g., make it snowy, add dramatic clouds (uses original Street View as base)"
-                        value={modificationPrompt}
-                        onChange={(e) => setModificationPrompt(e.target.value)}
-                        className="text-sm"
-                        rows={2}
-                        disabled={anyOperationInProgress}
+                    )}
+                    {!isGeneratingCinematicImage && generatedCinematicImage && (
+                    <div className="relative">
+                        <Image
+                        key={generatedCinematicImage}
+                        src={generatedCinematicImage}
+                        alt="AI Cinematic Shot"
+                        width={800}
+                        height={450}
+                        className="object-contain rounded-lg w-full h-auto"
+                        priority
+                        unoptimized={generatedCinematicImage.startsWith('http')}
                         />
-                        <p className="text-xs text-muted-foreground">
-                        Note: Modifies the original scene with these text instructions & current parameters. Character/prop uploads not supported by this model.
-                        </p>
+                        {snapshotOverlays && (
+                        <>
+                            <div className="absolute bottom-4 left-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm backdrop-blur-sm">
+                            <p className="font-semibold">GenScoutAI</p>
+                            {snapshotOverlays.lens && <p>Lens: {snapshotOverlays.lens}</p>}
+                            </div>
+                            <div className="absolute bottom-4 right-4 bg-black/60 text-white p-2 rounded text-xs md:text-sm text-right backdrop-blur-sm">
+                            {snapshotOverlays.time && <p>Time: {snapshotOverlays.time}</p>}
+                            {snapshotOverlays.weather && <p>Weather: {snapshotOverlays.weather}</p>}
+                            </div>
+                        </>
+                        )}
                     </div>
-                    <div className="flex gap-2 flex-wrap pt-2">
-                        <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
-                          <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                          Regenerate (16:9)
-                        </Button>
-                        <Button
-                          variant="default"
-                          onClick={handleModifyAndRegenerateFromDialog}
-                          disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
-                        >
-                          <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                          Modify & Regenerate (16:9)
-                        </Button>
-                    </div>
-                </div>
-                
-                {moodBoardImages.length > 0 && (
-                  <div className="mt-4 pt-4 border-t">
-                    <h4 className="text-md font-semibold mb-3">Scene Variations:</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      {moodBoardImages.map((src, index) => (
-                        <div key={index} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
-                          <Image
-                            src={src}
-                            alt={`Scene Variation ${index + 1}`}
-                            layout="fill"
-                            objectFit="cover"
-                            className="rounded-lg"
-                            unoptimized={src.startsWith('http')}
-                          />
+                    )}
+                    {!isGeneratingCinematicImage && !generatedCinematicImage && (
+                        <div className="w-full aspect-video flex flex-col items-center justify-center bg-muted rounded-lg">
+                            <ImageIcon className="w-16 h-16 text-primary/50" />
+                            <p className="ml-2 text-muted-foreground">No image generated yet.</p>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {isGeneratingVariations && moodBoardImages.length === 0 && ( 
-                    <div className="mt-4 pt-4 border-t">
-                        <h4 className="text-md font-semibold mb-3">Generating Scene Variations...</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {[...Array(3)].map((_, index) => (
-                                <Skeleton key={index} className="w-full aspect-video rounded-lg" />
-                            ))}
-                        </div>
-                    </div>
-                )}
+                    )}
 
-            </div>
-          </ScrollArea>
-          <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between items-center">
-            <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap justify-center sm:justify-start">
-                <Button
-                  variant="outline"
-                  onClick={handleGenerateSceneVariations}
-                  disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}
-                  className="w-full sm:w-auto"
-                >
-                  {isGeneratingVariations ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Variations...</>
-                  ) : (
-                    <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
-                  )}
-                </Button>
-                <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
-                <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress}>
-                  <Orbit className="mr-2 h-4 w-4" />
-                  View in 360/VR
-                </Button>
-            </div>
-            <DialogClose asChild>
-                <Button variant="secondary" disabled={anyOperationInProgress} className="w-full sm:w-auto mt-2 sm:mt-0">Close</Button>
-            </DialogClose>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </SidebarProvider>
+                    <div className="mt-4 space-y-4 pt-4 border-t">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                                    <Focus className="w-4 h-4" /> Camera Lens
+                                </Label>
+                                <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={anyOperationInProgress}>
+                                    <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
+                                        <SelectValue placeholder="Select lens" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {cameraLenses.map(lens => (
+                                        <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                                    <Film className="w-4 h-4" /> Shot Direction
+                                </Label>
+                                <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={anyOperationInProgress}>
+                                    <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
+                                        <SelectValue placeholder="Select shot direction" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {shotDirectionOptions.map(option => (
+                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="md:col-span-2">
+                                <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                                    <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
+                                    {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                                </Label>
+                                <Slider
+                                    id="dialog-time-of-day"
+                                    min={0}
+                                    max={23}
+                                    step={1}
+                                    value={[dialogTimeOfDay]}
+                                    onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
+                                    className="my-2"
+                                    disabled={anyOperationInProgress || isLoadingDialogTimePrompt}
+                                />
+                                {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
+                                <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                    <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
+                                </div>
+                                )}
+                            </div>
+                            <div>
+                                <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                                    <Bot className="w-4 h-4" /> Weather
+                                    {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                                </Label>
+                                <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={anyOperationInProgress || isLoadingDialogWeatherPrompt}>
+                                    <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
+                                    <SelectValue placeholder="Select weather" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                    <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                                    <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                                    <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                                    <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                                    <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
+                                <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                    <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
+                                </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-2 pt-4 border-t">
+                            <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
+                            <MessageSquarePlus className="w-4 h-4" />
+                            Text Modification (Gemini)
+                            </Label>
+                            <Textarea
+                            id="modification-prompt"
+                            placeholder="e.g., make it snowy, add dramatic clouds (uses original Street View as base)"
+                            value={modificationPrompt}
+                            onChange={(e) => setModificationPrompt(e.target.value)}
+                            className="text-sm"
+                            rows={2}
+                            disabled={anyOperationInProgress}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                            Note: Modifies the original scene with these text instructions & current parameters. Character/prop uploads not supported by this model.
+                            </p>
+                        </div>
+                        <div className="flex gap-2 flex-wrap pt-2">
+                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
+                            <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                            Regenerate (16:9)
+                            </Button>
+                            <Button
+                            variant="default"
+                            onClick={handleModifyAndRegenerateFromDialog}
+                            disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
+                            >
+                            <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                            Modify & Regenerate (16:9)
+                            </Button>
+                        </div>
+                    </div>
+                    
+                    {moodBoardImages.length > 0 && (
+                    <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-md font-semibold mb-3">Scene Variations:</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {moodBoardImages.map((src, index) => (
+                            <div key={index} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
+                            <Image
+                                src={src}
+                                alt={`Scene Variation ${index + 1}`}
+                                layout="fill"
+                                objectFit="cover"
+                                className="rounded-lg"
+                                unoptimized={src.startsWith('http')}
+                            />
+                            </div>
+                        ))}
+                        </div>
+                    </div>
+                    )}
+                    {isGeneratingVariations && moodBoardImages.length === 0 && ( 
+                        <div className="mt-4 pt-4 border-t">
+                            <h4 className="text-md font-semibold mb-3">Generating Scene Variations...</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {[...Array(3)].map((_, index) => (
+                                    <Skeleton key={index} className="w-full aspect-video rounded-lg" />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                </div>
+            </ScrollArea>
+            <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between items-center">
+                <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap justify-center sm:justify-start">
+                    <Button
+                    variant="outline"
+                    onClick={handleGenerateSceneVariations}
+                    disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}
+                    className="w-full sm:w-auto"
+                    >
+                    {isGeneratingVariations ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Variations...</>
+                    ) : (
+                        <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
+                    )}
+                    </Button>
+                    <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                    </Button>
+                    <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                    <Orbit className="mr-2 h-4 w-4" />
+                    View in 360/VR
+                    </Button>
+                </div>
+                <DialogClose asChild>
+                    <Button variant="secondary" disabled={anyOperationInProgress} className="w-full sm:w-auto mt-2 sm:mt-0">Close</Button>
+                </DialogClose>
+            </DialogFooter>
+            </DialogContent>
+        </Dialog>
+      </div>
   );
 }
-
