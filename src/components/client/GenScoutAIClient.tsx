@@ -735,41 +735,33 @@ export default function GenScoutAIClient() {
     }
   };
 
-  const handlePlacePhotoSelect = async (photo: google.maps.places.PlacePhoto) => {
+  const handlePlacePhotoSelect = useCallback(async (photo: google.maps.places.PlacePhoto) => {
     if (anyOperationInProgress) return;
     addNotification({ title: "Preparing Photo...", description: "Using selected image with AI." });
 
+    // Directly use the image URL. The Genkit flow will handle fetching it.
     const imageUrl = photo.getUrl({ maxWidth: 800 });
+    
+    setLastBaseImageSource(imageUrl);
+    setModificationPrompt("");
+    setDialogSelectedLens(selectedLens);
+    setDialogTimeOfDay(timeOfDay);
+    setDialogGeneratedTimePrompt(generatedTimePrompt);
+    setDialogWeatherCondition(weatherCondition);
+    setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
+    setDialogShotDirection(shotDirection);
+    setMoodBoardImages([]);
 
-    try {
-      setLastBaseImageSource(imageUrl);
-      
-      setDialogSelectedLens(selectedLens);
-      setDialogTimeOfDay(timeOfDay);
-      setDialogGeneratedTimePrompt(generatedTimePrompt);
-      setDialogWeatherCondition(weatherCondition);
-      setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
-      setDialogShotDirection(shotDirection);
-      setModificationPrompt("");
-      setMoodBoardImages([]);
+    await processSnapshotAndGenerateAI(imageUrl, {
+      lens: selectedLens,
+      timeOfDayValue: timeOfDay,
+      weatherConditionValue: weatherCondition,
+      direction: shotDirection,
+      sceneDesc: locationForStreetView || 'Selected user photo',
+    });
 
-      await processSnapshotAndGenerateAI(imageUrl, {
-        lens: selectedLens,
-        timeOfDayValue: timeOfDay,
-        weatherConditionValue: weatherCondition,
-        direction: shotDirection,
-        sceneDesc: locationForStreetView || 'Selected user photo'
-      });
-
-    } catch (error) {
-      console.error("Error processing place photo:", error);
-      addNotification({
-          title: "Photo Processing Failed",
-          description: `Could not use the selected photo. ${error instanceof Error ? error.message : String(error)}`,
-          variant: "destructive",
-      });
-    }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyOperationInProgress, addNotification, selectedLens, timeOfDay, generatedTimePrompt, weatherCondition, generatedWeatherPrompt, shotDirection, locationForStreetView]);
 
   const handleRegenerateFromDialog = async () => {
     if (!lastBaseImageSource) {
