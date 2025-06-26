@@ -100,7 +100,7 @@ export default function GenScoutAIClient() {
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
   const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string} | null>(null);
-  const [lastStreetViewSnapshotDataUri, setLastStreetViewSnapshotDataUri] = useState<string | null>(null);
+  const [lastBaseImageSource, setLastBaseImageSource] = useState<string | null>(null);
 
   const [currentDisplayMode, setCurrentDisplayMode] = useState<'map' | 'streetview' | 'planner'>('map');
   const [plannerViewType, setPlannerViewType] = useState<'satellite' | 'schematic'>('satellite');
@@ -557,7 +557,7 @@ export default function GenScoutAIClient() {
 
 
   const processSnapshotAndGenerateAI = async (
-    base64StreetViewImage: string,
+    baseImageSource: string,
     options: {
       lens: string;
       timeOfDayValue: number;
@@ -612,7 +612,7 @@ export default function GenScoutAIClient() {
 
     try {
       const aiInput: GenerateCinematicShotInput = {
-        streetViewImageDataUri: base64StreetViewImage,
+        baseImageUri: baseImageSource,
         focalLength: options.lens,
         timeOfDayToken: finalTimeOfDayToken,
         weatherConditionPrompt: finalWeatherConditionPrompt,
@@ -715,7 +715,7 @@ export default function GenScoutAIClient() {
         reader.readAsDataURL(blob);
       });
 
-      setLastStreetViewSnapshotDataUri(base64data);
+      setLastBaseImageSource(base64data);
       setModificationPrompt("");
 
       setDialogSelectedLens(selectedLens);
@@ -736,7 +736,7 @@ export default function GenScoutAIClient() {
 
     } catch (error) {
       console.error("Error fetching/processing Street View snapshot:", error);
-      setLastStreetViewSnapshotDataUri(null);
+      setLastBaseImageSource(null);
       toast({
           title: "Street View Snapshot Failed",
           description: `Could not fetch or process Street View image. ${error instanceof Error ? error.message : String(error)}`,
@@ -749,33 +749,12 @@ export default function GenScoutAIClient() {
 
   const handlePlacePhotoSelect = async (photo: google.maps.places.PlacePhoto) => {
     if (anyOperationInProgress) return;
-    toast({ title: "Preparing Photo...", description: "Fetching selected image to use with AI." });
+    toast({ title: "Preparing Photo...", description: "Using selected image with AI." });
 
     const imageUrl = photo.getUrl({ maxWidth: 800 });
 
     try {
-      const base64data = await new Promise<string>((resolve, reject) => {
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            return reject(new Error('Failed to get canvas context'));
-          }
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        img.onerror = (err) => {
-          console.error("Image loading error (check for CORS issues):", err);
-          reject(new Error('Failed to load image from Google. This may be a CORS issue.'));
-        };
-        img.src = imageUrl;
-      });
-      
-      setLastStreetViewSnapshotDataUri(base64data);
+      setLastBaseImageSource(imageUrl);
       
       setDialogSelectedLens(selectedLens);
       setDialogTimeOfDay(timeOfDay);
@@ -786,7 +765,7 @@ export default function GenScoutAIClient() {
       setModificationPrompt("");
       setMoodBoardImages([]);
 
-      await processSnapshotAndGenerateAI(base64data, {
+      await processSnapshotAndGenerateAI(imageUrl, {
         lens: selectedLens,
         timeOfDayValue: timeOfDay,
         weatherConditionValue: weatherCondition,
@@ -805,14 +784,14 @@ export default function GenScoutAIClient() {
   };
 
   const handleRegenerateFromDialog = async () => {
-    if (!lastStreetViewSnapshotDataUri) {
-      toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
+    if (!lastBaseImageSource) {
+      toast({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
       return;
     }
     if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
     toast({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
+    await processSnapshotAndGenerateAI(lastBaseImageSource, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
         weatherConditionValue: dialogWeatherCondition,
@@ -822,8 +801,8 @@ export default function GenScoutAIClient() {
   };
 
   const handleModifyAndRegenerateFromDialog = async () => {
-    if (!lastStreetViewSnapshotDataUri) {
-      toast({ title: "Regeneration Error", description: "No base Street View image available. Take a snapshot first.", variant: "destructive" });
+    if (!lastBaseImageSource) {
+      toast({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
       return;
     }
     if (!modificationPrompt.trim()) {
@@ -833,7 +812,7 @@ export default function GenScoutAIClient() {
     if (isGeneratingCinematicImage || isGeneratingVariations) return;
 
     toast({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings...", variant: "default" });
-    await processSnapshotAndGenerateAI(lastStreetViewSnapshotDataUri, {
+    await processSnapshotAndGenerateAI(lastBaseImageSource, {
         lens: dialogSelectedLens,
         timeOfDayValue: dialogTimeOfDay,
         weatherConditionValue: dialogWeatherCondition,
@@ -844,8 +823,8 @@ export default function GenScoutAIClient() {
   };
 
   const handleGenerateSceneVariations = async () => {
-    if (!lastStreetViewSnapshotDataUri) {
-      toast({ title: "Error", description: "No base Street View image available for variations.", variant: "destructive" });
+    if (!lastBaseImageSource) {
+      toast({ title: "Error", description: "No base image available for variations.", variant: "destructive" });
       return;
     }
     if (isGeneratingVariations || isGeneratingCinematicImage) return;
@@ -865,7 +844,7 @@ export default function GenScoutAIClient() {
     for (let i = 0; i < variationPrompts.length; i++) {
       try {
         const variationInput: GenerateCinematicShotInput = {
-          streetViewImageDataUri: lastStreetViewSnapshotDataUri,
+          baseImageUri: lastBaseImageSource,
           focalLength: dialogSelectedLens,
           timeOfDayToken: dialogGeneratedTimePrompt, 
           weatherConditionPrompt: dialogGeneratedWeatherPrompt, 
@@ -1214,7 +1193,7 @@ export default function GenScoutAIClient() {
                       onClick={handleSnapshot}
                       disabled={anyOperationInProgress || !isStreetViewReady || !googleMapsApiLoaded}
                     >
-                      {isGeneratingCinematicImage && !generatedCinematicImage && lastStreetViewSnapshotDataUri ? (
+                      {isGeneratingCinematicImage && !generatedCinematicImage && lastBaseImageSource?.startsWith('data:') ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Taking Snapshot...
                         </>
@@ -1449,7 +1428,7 @@ export default function GenScoutAIClient() {
                             </Label>
                             <Textarea
                             id="modification-prompt"
-                            placeholder="e.g., make it snowy, add dramatic clouds (uses original Street View as base)"
+                            placeholder="e.g., make it snowy, add dramatic clouds (uses original scene as base)"
                             value={modificationPrompt}
                             onChange={(e) => setModificationPrompt(e.target.value)}
                             className="text-sm"
@@ -1461,14 +1440,14 @@ export default function GenScoutAIClient() {
                             </p>
                         </div>
                         <div className="flex gap-2 flex-wrap pt-2">
-                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}>
+                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
                             <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
                             Regenerate
                             </Button>
                             <Button
                             variant="default"
                             onClick={handleModifyAndRegenerateFromDialog}
-                            disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress || !modificationPrompt.trim()}
+                            disabled={!lastBaseImageSource || anyOperationInProgress || !modificationPrompt.trim()}
                             >
                             <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
                             Modify & Regenerate
@@ -1513,7 +1492,7 @@ export default function GenScoutAIClient() {
                     <Button
                     variant="outline"
                     onClick={handleGenerateSceneVariations}
-                    disabled={!lastStreetViewSnapshotDataUri || anyOperationInProgress}
+                    disabled={!lastBaseImageSource || anyOperationInProgress}
                     className="w-full sm:w-auto"
                     >
                     {isGeneratingVariations ? (

@@ -12,17 +12,17 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateCinematicShotInputSchema = z.object({
-  streetViewImageDataUri: z
+  baseImageUri: z
     .string()
     .describe(
-      "A snapshot of a street view scene, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A snapshot of a scene, as either a public URL or a data URI that must include a MIME type and use Base64 encoding. Expected format: 'https://...' or 'data:<mimetype>;base64,<encoded_data>'."
     ),
   focalLength: z.string().describe('The desired camera focal length (e.g., "24mm", "50mm", "85mm"). This influences field of view and perspective.'),
   timeOfDayToken: z.string().describe('A descriptive token for the time of day (e.g., "golden hour", "night", "noon"). This influences lighting and mood.'),
   weatherConditionPrompt: z.string().describe('A short prompt describing the weather (e.g., "light rain", "foggy morning", "clear sky"). This influences atmospheric effects.'),
   sceneDescription: z.string().optional().describe('Optional brief description of the location or scene context.'),
   shotDirection: z.string().describe('Specific instructions for camera angle, view, or framing (e.g., "eye-level view", "low angle looking up").'),
-  modificationInstruction: z.string().optional().describe('Optional additional instruction to modify the scene (e.g., "remove cars", "make it look like a cyberpunk city").'),
+  modificationInstruction: z.string().optional().describe('Optional additional instruction to modify the scene (e.g., "remove cars", "make it a cyberpunk city").'),
 });
 export type GenerateCinematicShotInput = z.infer<typeof GenerateCinematicShotInputSchema>;
 
@@ -37,16 +37,41 @@ const GenerateCinematicShotOutputSchema = z.object({
 export type GenerateCinematicShotOutput = z.infer<typeof GenerateCinematicShotOutputSchema>;
 
 export async function generateCinematicShot(input: GenerateCinematicShotInput): Promise<GenerateCinematicShotOutput> {
-  return generateCinematicShotFlow(input);
+  // Rename input field for clarity before passing to the flow
+  const flowInput = {
+    ...input,
+    streetViewImageDataUri: input.baseImageUri
+  };
+  return generateCinematicShotFlow(flowInput as any);
 }
 
 const generateCinematicShotFlow = ai.defineFlow(
   {
     name: 'generateCinematicShotFlow',
-    inputSchema: GenerateCinematicShotInputSchema,
+    inputSchema: GenerateCinematicShotInputSchema.extend({ streetViewImageDataUri: z.string() }), // Internal use
     outputSchema: GenerateCinematicShotOutputSchema,
   },
-  async (input: GenerateCinematicShotInput) => {
+  async (input: GenerateCinematicShotInput & { streetViewImageDataUri: string }) => {
+    
+    let finalImageDataUri = input.streetViewImageDataUri;
+
+    // If the input is a URL, fetch it on the server and convert it to a data URI.
+    if (finalImageDataUri.startsWith('http')) {
+      try {
+        const response = await fetch(finalImageDataUri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image from URL: ${response.statusText}`);
+        }
+        const imageBuffer = await response.arrayBuffer();
+        const mimeType = response.headers.get('content-type') || 'image/jpeg';
+        const base64String = Buffer.from(imageBuffer).toString('base64');
+        finalImageDataUri = `data:${mimeType};base64,${base64String}`;
+      } catch (error) {
+        console.error("Error fetching base image from URL in flow:", error);
+        return { generatedImageDataUri: null };
+      }
+    }
+
     let textPrompt = `Objective: Create a high-quality, cinematic photograph. The image's dimensions ABSOLUTELY MUST be in a 16:9 landscape aspect ratio. This is a strict requirement. The image must be widescreen.
 Base Image: Use the provided street view image as the structural and content foundation.
 Key Cinematic Adjustments:
@@ -77,7 +102,7 @@ Generate the reimagined cinematic shot based on these precise instructions. The 
 
     const imageGenPrompt = [
         {text: textPrompt},
-        {media: {url: input.streetViewImageDataUri}},
+        {media: {url: finalImageDataUri}},
     ];
 
     try {
@@ -107,4 +132,3 @@ Generate the reimagined cinematic shot based on these precise instructions. The 
     }
   }
 );
-
