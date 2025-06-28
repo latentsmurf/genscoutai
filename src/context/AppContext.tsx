@@ -61,6 +61,7 @@ interface AppContextType {
   logout: () => void;
   images: GeneratedImage[];
   addImage: (image: Omit<GeneratedImage, 'id' | 'createdAt'>) => void;
+  deleteImage: (id: string) => void;
   sessionCosts: SessionCosts;
   updateSessionCost: (type: CostType) => void;
   resetSessionCosts: () => void;
@@ -94,6 +95,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       { ...image, id: new Date().toISOString() + Math.random(), createdAt: new Date() },
       ...prevImages
     ]);
+  }, []);
+
+  const deleteImage = useCallback((id: string) => {
+    setImages(prevImages => prevImages.filter(image => image.id !== id));
   }, []);
 
   const updateSessionCost = useCallback((type: CostType) => {
@@ -140,6 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
         images,
         addImage,
+        deleteImage,
         isAuthenticated,
         login,
         logout,

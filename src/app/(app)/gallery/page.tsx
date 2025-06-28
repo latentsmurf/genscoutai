@@ -3,7 +3,7 @@
 import { useAppContext, type GeneratedImage } from '@/context/AppContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { ImageIcon, Calendar, Camera, Film, MapPin, Sun, Wind, Download, Info } from 'lucide-react';
+import { ImageIcon, Calendar, Camera, Film, MapPin, Sun, Wind, Download, Info, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,12 +13,59 @@ import {
   DialogTrigger,
   DialogClose
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
-function GalleryImageDialog({ image }: { image: GeneratedImage }) {
+function DeleteImageDialog({ imageId, onDeleted }: { imageId: string, onDeleted: () => void }) {
+  const { deleteImage, addNotification } = useAppContext();
+
+  const handleDelete = () => {
+    deleteImage(imageId);
+    addNotification({ title: "Image Deleted", description: "The cinematic shot has been removed from your gallery." });
+    onDeleted();
+  };
+
   return (
-    <Dialog>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the generated image from your session gallery.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+
+function GalleryImageDialog({ image }: { image: GeneratedImage }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <div className="relative aspect-video group cursor-pointer">
           <Image
@@ -62,14 +109,19 @@ function GalleryImageDialog({ image }: { image: GeneratedImage }) {
                 </div>
             </div>
         </div>
-        <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => window.open(image.src, '_blank')}>
-                <Download className="mr-2 h-4 w-4" />
-                Download
-            </Button>
-            <DialogClose asChild>
-                 <Button variant="secondary">Close</Button>
-            </DialogClose>
+        <div className="flex justify-between items-center pt-4">
+            <div>
+                <DeleteImageDialog imageId={image.id} onDeleted={() => setIsOpen(false)} />
+            </div>
+            <div className="flex gap-2">
+                <Button variant="outline" onClick={() => window.open(image.src, '_blank')}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                </Button>
+                <DialogClose asChild>
+                     <Button variant="secondary">Close</Button>
+                </DialogClose>
+            </div>
         </div>
       </DialogContent>
     </Dialog>
