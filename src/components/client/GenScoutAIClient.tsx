@@ -114,13 +114,12 @@ export default function GenScoutAIClient() {
 
   const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
   const [isGeneratingVariations, setIsGeneratingVariations] = useState<boolean>(false);
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   // New state for Place Photos
   const [currentPlaceId, setCurrentPlaceId] = useState<string | null>(null);
   const [placePhotos, setPlacePhotos] = useState<google.maps.places.PlacePhoto[]>([]);
   const [isLoadingPlacePhotos, setIsLoadingPlacePhotos] = useState<boolean>(false);
-
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -523,7 +522,7 @@ export default function GenScoutAIClient() {
         if (place && (place.formatted_address || place.name)) {
             handleAutocompletePlaceSelected(place);
         } else if (searchInputRef.current?.value) {
-            handleLocationSearch();
+            handleLocationSearch(searchInputRef.current?.value);
         }
       });
       autocompleteRef.current = autocomplete;
@@ -767,7 +766,7 @@ export default function GenScoutAIClient() {
       addNotification({ title: "Regeneration Error", description: "No base image available. Take a snapshot or select a photo first.", variant: "destructive" });
       return;
     }
-    if (isGeneratingCinematicImage || isGeneratingVariations) return;
+    if (anyOperationInProgress) return;
 
     addNotification({ title: "Regenerating Shot", description: "AI is creating a new variation with dialog settings..." });
     await processSnapshotAndGenerateAI(lastBaseImageSource, {
@@ -788,7 +787,7 @@ export default function GenScoutAIClient() {
       addNotification({ title: "Modification Empty", description: "Please enter a modification instruction." });
       return;
     }
-    if (isGeneratingCinematicImage || isGeneratingVariations) return;
+    if (anyOperationInProgress) return;
 
     addNotification({ title: "Modifying & Regenerating", description: "AI is applying your changes with dialog settings..." });
     await processSnapshotAndGenerateAI(lastBaseImageSource, {
@@ -869,9 +868,9 @@ export default function GenScoutAIClient() {
   }
 
   return (
-      <div className="flex h-full flex-col md:flex-row gap-4 p-4">
+      <div className="flex h-full flex-col md:flex-row">
         {/* LEFT CONTROL PANEL */}
-        <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col">
+        <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col rounded-none shadow-none border-0 border-b md:border-r md:border-b-0">
           <CardHeader className="flex-row items-center gap-4 border-b">
             <Compass className="w-8 h-8 hidden md:block" />
             <div>
@@ -889,12 +888,12 @@ export default function GenScoutAIClient() {
               <div className="p-4 pt-0">
               <TabsContent value="custom-search" className="mt-0">
                   <div className="space-y-4">
-                      <form onSubmit={(e) => { e.preventDefault(); handleLocationSearch(); }} className="flex gap-2">
+                      <form onSubmit={(e) => { e.preventDefault(); handleLocationSearch(searchInputRef.current?.value); }} className="flex gap-2">
                         <Input
                           ref={searchInputRef}
                           type="text"
                           placeholder="Search for a location..."
-                          value={searchInput}
+                          defaultValue={searchInput}
                           onChange={(e) => setSearchInput(e.target.value)}
                           disabled={!googleMapsApiLoaded || anyOperationInProgress}
                         />
@@ -997,7 +996,7 @@ export default function GenScoutAIClient() {
         </Card>
 
         {/* RIGHT DISPLAY PANEL */}
-        <div className="flex-1 flex flex-col gap-4 relative">
+        <div className="flex-1 flex flex-col gap-4 relative p-4">
           {currentDisplayMode === 'streetview' && (
               <Button
                 variant="outline"

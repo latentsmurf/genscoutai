@@ -296,7 +296,7 @@ export default function AppLayout({
           </DropdownMenu>
         </div>
       </header>
-      <main className="flex flex-1 flex-col bg-muted/40">
+      <main className="flex flex-1 flex-col bg-background">
         {children}
       </main>
     </div>
