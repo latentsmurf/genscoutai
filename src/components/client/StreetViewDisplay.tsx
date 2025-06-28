@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ImageIcon } from 'lucide-react';
+import { useAppContext } from '@/context/AppContext';
 
 interface StreetViewDisplayProps {
   locationToLoad: string;
@@ -19,6 +20,7 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
   streetViewPanoramaRef,
   onStreetViewStatusChange,
 }) => {
+  const { addNotification } = useAppContext();
   const streetViewContainerRef = useRef<HTMLDivElement>(null);
   const [isLoadingStreetView, setIsLoadingStreetView] = useState(false);
   const [_currentPanoId, setCurrentPanoId] = useState<string | null>(null);
@@ -80,7 +82,38 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
       return;
     }
     
-    const processLocationForPanorama = (locationForPanoService: string | google.maps.LatLng | google.maps.LatLngLiteral) => {
+    const displayPanorama = (panoData: google.maps.StreetViewPanoramaData) => {
+        if (!currentContainer || !panoData.location || !panoData.location.pano) return;
+        
+        onStreetViewStatusChange('OK');
+        setStatusMessage(null);
+        
+        const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
+            pano: panoData.location.pano,
+            position: panoData.location.latLng,
+            pov: { heading: 165, pitch: 0 },
+            zoom: 1,
+            visible: true,
+            addressControl: false,
+            linksControl: true,      
+            panControl: true,        
+            zoomControl: true,       
+            clickToGo: true,         
+            enableCloseButton: false,
+            fullscreenControl: false,
+            motionTracking: false,
+            motionTrackingControl: false,
+            disableDefaultUI: false, 
+        };
+        
+        streetViewPanoramaRef.current = new window.google.maps.StreetViewPanorama(
+            currentContainer,
+            panoramaOptions
+        );
+        setCurrentPanoId(panoData.location.pano);
+    };
+
+    const attemptToFindPanorama = (locationForPanoService: string | google.maps.LatLng | google.maps.LatLngLiteral) => {
         if (!window.google || !window.google.maps || !window.google.maps.StreetViewService) {
             onStreetViewStatusChange('ERROR', 'Google Maps StreetViewService not available.');
             setStatusMessage('Street View service component failed to load. Please refresh.');
@@ -88,56 +121,46 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
             return;
         }
         const streetViewService = new window.google.maps.StreetViewService();
+        
+        // First attempt: precise, 50m radius
         streetViewService.getPanorama(
-          { 
-            location: locationForPanoService, 
-            radius: 50, 
-            source: window.google.maps.StreetViewSource.DEFAULT
-          }, 
-          (data, svStatus) => {
-            setIsLoadingStreetView(false);
-            if (svStatus === window.google.maps.StreetViewStatus.OK && currentContainer && data && data.location && data.location.pano && data.location.latLng) {
-                onStreetViewStatusChange('OK');
-                setStatusMessage(null);
-                const panoramaOptions: google.maps.StreetViewPanoramaOptions = {
-                    pano: data.location.pano,
-                    position: data.location.latLng,
-                    pov: { heading: 165, pitch: 0 },
-                    zoom: 1,
-                    visible: true,
-                    addressControl: false,
-                    linksControl: true,      
-                    panControl: true,        
-                    zoomControl: true,       
-                    clickToGo: true,         
-                    enableCloseButton: false,
-                    fullscreenControl: false,
-                    motionTracking: false,
-                    motionTrackingControl: false,
-                    disableDefaultUI: false, 
-                };
-                
-                streetViewPanoramaRef.current = new window.google.maps.StreetViewPanorama(
-                    currentContainer,
-                    panoramaOptions
-                );
-                setCurrentPanoId(data.location.pano);
-
-            } else {
-                if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
-                if(svStatus === window.google.maps.StreetViewStatus.ZERO_RESULTS) {
-                    onStreetViewStatusChange('ZERO_RESULTS');
-                    setStatusMessage("Street View data not found for this location. Please try selecting a spot on a blue line on the map.");
+            { location: locationForPanoService, radius: 50, source: window.google.maps.StreetViewSource.DEFAULT },
+            (data, status) => {
+                if (status === window.google.maps.StreetViewStatus.OK && data) {
+                    setIsLoadingStreetView(false);
+                    displayPanorama(data);
+                } else if (status === window.google.maps.StreetViewStatus.ZERO_RESULTS) {
+                    // Second attempt: wider search, 1000m radius
+                    streetViewService.getPanorama(
+                        { location: locationForPanoService, radius: 1000, source: window.google.maps.StreetViewSource.OUTDOOR },
+                        (widerData, widerStatus) => {
+                            setIsLoadingStreetView(false);
+                            if (widerStatus === window.google.maps.StreetViewStatus.OK && widerData) {
+                                addNotification({
+                                    title: "Nearby Street View Found",
+                                    description: "No data was available at the exact spot. Showing the closest available location.",
+                                });
+                                displayPanorama(widerData);
+                            } else {
+                                if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+                                onStreetViewStatusChange('ZERO_RESULTS');
+                                setStatusMessage("No Street View data found for this location, even after searching nearby.");
+                            }
+                        }
+                    );
                 } else {
-                    const userMessage = `Street View error: ${svStatus}. Try a different location.`;
+                    // Handle other errors from the first attempt
+                    setIsLoadingStreetView(false);
+                    if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
+                    const userMessage = `Street View error: ${status}. Try a different location.`;
                     onStreetViewStatusChange('ERROR', userMessage);
-                    setStatusMessage(userMessage); 
+                    setStatusMessage(userMessage);
                 }
             }
-        });
+        );
     };
 
-    if (typeof queryParamForService === 'string') {
+    const geocodeAndFindPanorama = (address: string) => {
         if (!window.google || !window.google.maps || !window.google.maps.Geocoder) {
              onStreetViewStatusChange('ERROR', 'Google Maps Geocoder not available.');
              setStatusMessage('Geocoder service component failed to load. Please refresh.');
@@ -145,25 +168,29 @@ const StreetViewDisplay: React.FC<StreetViewDisplayProps> = ({
              return;
         }
         const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ address: queryParamForService }, (results, status) => {
+        geocoder.geocode({ address }, (results, status) => {
             if (status === window.google.maps.GeocoderStatus.OK && results && results[0] && results[0].geometry && results[0].geometry.location) {
-                processLocationForPanorama(results[0].geometry.location);
+                attemptToFindPanorama(results[0].geometry.location);
             } else {
                 setIsLoadingStreetView(false);
                 let userMessage = `Geocoding failed for Street View: ${status}`;
                  if (status === window.google.maps.GeocoderStatus.ZERO_RESULTS) {
-                    userMessage = `Could not find location for Street View: "${queryParamForService}".`;
+                    userMessage = `Could not find location for Street View: "${address}".`;
                 }
                 onStreetViewStatusChange('ERROR', userMessage);
                 setStatusMessage(userMessage);
                 if (streetViewPanoramaRef.current) streetViewPanoramaRef.current.setVisible(false);
             }
         });
+    };
+
+    if (typeof queryParamForService === 'string') {
+        geocodeAndFindPanorama(queryParamForService);
     } else if (queryParamForService) {
-        processLocationForPanorama(queryParamForService as google.maps.LatLngLiteral);
+        attemptToFindPanorama(queryParamForService as google.maps.LatLngLiteral);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationToLoad, apiKey, isApiLoaded]); 
+  }, [locationToLoad, apiKey, isApiLoaded, addNotification]); 
 
 
   return (
