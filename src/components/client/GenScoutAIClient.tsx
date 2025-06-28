@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -66,7 +66,15 @@ const schematicMapStyles: google.maps.MapTypeStyle[] = [
 ];
 
 export default function GenScoutAIClient() {
-  const { addImage, updateSessionCost, addNotification } = useAppContext();
+  const { 
+    addImageToActiveProject, 
+    updateSessionCost, 
+    addNotification,
+    projects,
+    activeProjectId,
+    setActiveProjectId,
+    createProject
+  } = useAppContext();
 
   // State Variables
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState<string | null>(null);
@@ -513,12 +521,12 @@ export default function GenScoutAIClient() {
             },
         });
         const dataUrl = canvas.toDataURL('image/png');
-        addImage({
+        addImageToActiveProject({
             src: dataUrl,
             prompt: `Scene Plan for ${locationForStreetView || 'Selected Area'}`,
             type: 'Scene Plan',
         });
-        addNotification({ title: "Scene Plan Saved!", description: "Your plan has been added to the Media Gallery." });
+        addNotification({ title: "Scene Plan Saved!", description: "Your plan has been added to the active project." });
 
     } catch (error) {
         console.error("Error capturing scene plan:", error);
@@ -526,7 +534,7 @@ export default function GenScoutAIClient() {
     } finally {
         setIsCapturingPlan(false);
     }
-}, [addImage, addNotification, locationForStreetView]);
+}, [addImageToActiveProject, addNotification, locationForStreetView]);
 
 
   useEffect(() => {
@@ -666,7 +674,7 @@ export default function GenScoutAIClient() {
         };
         setSnapshotOverlays(overlayData);
         
-        addImage({
+        addImageToActiveProject({
             type: 'Cinematic Shot',
             src: result.generatedImageDataUri,
             prompt: `Cinematic shot of ${aiInput.sceneDescription}`,
@@ -925,6 +933,26 @@ export default function GenScoutAIClient() {
               <CardDescription className="text-sm">Find, analyze, and select your location.</CardDescription>
             </div>
           </CardHeader>
+           <div className="p-4 border-b">
+              <Label htmlFor="project-select">Active Project</Label>
+              <div className="flex gap-2 mt-1">
+                 <Select value={activeProjectId || ''} onValueChange={(val) => setActiveProjectId(val === 'none' ? null : val)} disabled={anyOperationInProgress}>
+                    <SelectTrigger id="project-select">
+                        <SelectValue placeholder="Select a project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {projects.length > 0 ? (
+                           projects.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)
+                        ) : (
+                           <SelectItem value="none" disabled>No projects yet</SelectItem>
+                        )}
+                    </SelectContent>
+                </Select>
+                 <Button variant="outline" size="icon" onClick={() => createProject(`Project ${projects.length + 1}`)} title="Create New Project">
+                    <FolderPlus className="w-4 h-4" />
+                </Button>
+              </div>
+           </div>
           <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="grid w-full grid-cols-3 m-2">
                 <TabsTrigger value="custom-search"><Search className="w-4 h-4 mr-1" />Search</TabsTrigger>

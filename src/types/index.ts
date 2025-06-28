@@ -1,4 +1,11 @@
 
+export interface Project {
+  id: string;
+  name: string;
+  images: GeneratedImage[];
+  createdAt: Date;
+}
+
 export interface FilmingLocation {
   id: string;
   movieTitle: string;
