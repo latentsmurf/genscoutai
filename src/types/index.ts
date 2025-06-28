@@ -17,7 +17,8 @@ export interface GeneratedImage {
   id: string;
   src: string;
   prompt: string;
-  params: {
+  type: 'Cinematic Shot' | 'Scene Plan';
+  params?: {
     lens: string;
     time: string;
     weather: string;

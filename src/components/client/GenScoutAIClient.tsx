@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -41,6 +41,7 @@ import type { FilmingLocation } from '@/types';
 import { sampleFilmingLocations } from '@/data/filming-locations';
 import { cn } from '@/lib/utils';
 import { useAppContext } from '@/context/AppContext';
+import html2canvas from 'html2canvas';
 
 const schematicMapStyles: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
@@ -120,13 +121,19 @@ export default function GenScoutAIClient() {
   const [currentPlaceId, setCurrentPlaceId] = useState<string | null>(null);
   const [placePhotos, setPlacePhotos] = useState<google.maps.places.PlacePhoto[]>([]);
   const [isLoadingPlacePhotos, setIsLoadingPlacePhotos] = useState<boolean>(false);
+
+  // New state for Scene Planner
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState<boolean>(false);
+  const [isCapturingPlan, setIsCapturingPlan] = useState<boolean>(false);
   
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
 
   // Constants
   const shotDirectionOptions = [
@@ -487,6 +494,41 @@ export default function GenScoutAIClient() {
     addNotification({ title: "Location Set", description: `${location.movieTitle} - ${location.locationName} loaded.` });
   }, [handleLocationSelect, addNotification]);
 
+  const handleCaptureScenePlan = useCallback(async () => {
+    if (!mapContainerRef.current) {
+        addNotification({ title: "Capture Error", description: "Map element not found.", variant: "destructive" });
+        return;
+    }
+    setIsCapturingPlan(true);
+    addNotification({ title: "Capturing Scene Plan...", description: "Please wait while the map is rendered." });
+    try {
+        const canvas = await html2canvas(mapContainerRef.current, {
+            useCORS: true, // Important for fetching map tiles from Google's servers
+            allowTaint: true,
+            logging: false,
+            // Temporarily hide the Google logo and terms of use for a cleaner capture
+            onclone: (doc) => {
+              const googleUI = doc.querySelector('.gmnoprint');
+              if (googleUI) (googleUI as HTMLElement).style.display = 'none';
+            },
+        });
+        const dataUrl = canvas.toDataURL('image/png');
+        addImage({
+            src: dataUrl,
+            prompt: `Scene Plan for ${locationForStreetView || 'Selected Area'}`,
+            type: 'Scene Plan',
+        });
+        addNotification({ title: "Scene Plan Saved!", description: "Your plan has been added to the Media Gallery." });
+
+    } catch (error) {
+        console.error("Error capturing scene plan:", error);
+        addNotification({ title: "Capture Failed", description: `Could not save the scene plan. Error: ${error instanceof Error ? error.message : 'Unknown'}`, variant: "destructive" });
+    } finally {
+        setIsCapturingPlan(false);
+    }
+}, [addImage, addNotification, locationForStreetView]);
+
+
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -498,7 +540,7 @@ export default function GenScoutAIClient() {
       const loader = new Loader({
         apiKey: key,
         version: 'weekly',
-        libraries: ['maps', 'marker', 'streetView', 'geocoding', 'places'],
+        libraries: ['maps', 'marker', 'streetView', 'geocoding', 'places', 'drawing'],
       });
       loader.load().then(() => {
         setGoogleMapsApiLoaded(true);
@@ -625,6 +667,7 @@ export default function GenScoutAIClient() {
         setSnapshotOverlays(overlayData);
         
         addImage({
+            type: 'Cinematic Shot',
             src: result.generatedImageDataUri,
             prompt: `Cinematic shot of ${aiInput.sceneDescription}`,
             params: {
@@ -1054,25 +1097,35 @@ export default function GenScoutAIClient() {
               </CardHeader>
                {currentDisplayMode === 'planner' && (
                  <CardContent className="p-4 pt-0 border-t">
-                  <div className="flex justify-between items-center pt-4">
+                  <div className="flex justify-between items-center pt-4 flex-wrap gap-4">
                     <Label className="text-base font-semibold">Planner Options</Label>
-                    <div className="flex gap-2">
-                      <Button
-                        variant={plannerViewType === 'satellite' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setPlannerViewType('satellite')}
-                        disabled={anyOperationInProgress}
-                      >
-                        <Layers className="mr-2 h-4 w-4"/> Satellite
+                    <div className="flex gap-4 items-center flex-wrap">
+                      <div className="flex items-center space-x-2">
+                        <Switch id="drawing-mode" checked={isDrawingEnabled} onCheckedChange={setIsDrawingEnabled} disabled={anyOperationInProgress} />
+                        <Label htmlFor="drawing-mode" className="flex items-center gap-2"><PencilRuler/> Drawing Tools</Label>
+                      </div>
+                      <Button size="sm" onClick={handleCaptureScenePlan} disabled={anyOperationInProgress}>
+                        {isCapturingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ImageDown className="mr-2 h-4 w-4" />}
+                        Capture Plan
                       </Button>
-                      <Button
-                        variant={plannerViewType === 'schematic' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setPlannerViewType('schematic')}
-                        disabled={anyOperationInProgress}
-                      >
-                        <Network className="mr-2 h-4 w-4"/> Schematic
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={plannerViewType === 'satellite' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPlannerViewType('satellite')}
+                          disabled={anyOperationInProgress}
+                        >
+                          <Layers className="mr-2 h-4 w-4"/> Satellite
+                        </Button>
+                        <Button
+                          variant={plannerViewType === 'schematic' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPlannerViewType('schematic')}
+                          disabled={anyOperationInProgress}
+                        >
+                          <Network className="mr-2 h-4 w-4"/> Schematic
+                        </Button>
+                      </div>
                     </div>
                   </div>
                  </CardContent>
@@ -1216,6 +1269,7 @@ export default function GenScoutAIClient() {
             )}
             {googleMapsApiLoaded && currentDisplayMode === 'map' && (
               <MapViewDisplay
+                mapRef={mapContainerRef}
                 apiKey={googleMapsApiKey}
                 isApiLoaded={googleMapsApiLoaded}
                 center={currentMapCenter}
@@ -1236,6 +1290,7 @@ export default function GenScoutAIClient() {
             )}
             {googleMapsApiLoaded && currentDisplayMode === 'planner' && (
               <MapViewDisplay
+                mapRef={mapContainerRef}
                 apiKey={googleMapsApiKey}
                 isApiLoaded={googleMapsApiLoaded}
                 center={currentMapCenter}
@@ -1245,6 +1300,7 @@ export default function GenScoutAIClient() {
                 mapTypeId={plannerViewType === 'satellite' ? 'satellite' : 'roadmap'}
                 customStyles={plannerViewType === 'schematic' ? schematicMapStyles : undefined}
                 enableTilt={plannerViewType === 'satellite'}
+                enableDrawing={isDrawingEnabled}
               />
             )}
           </div>

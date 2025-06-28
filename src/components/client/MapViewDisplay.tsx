@@ -11,9 +11,11 @@ interface MapViewDisplayProps {
   zoom: number;
   markerPos: google.maps.LatLngLiteral | null;
   onMapClick: (latLng: google.maps.LatLngLiteral) => void;
+  mapRef: React.RefObject<HTMLDivElement>;
   mapTypeId?: google.maps.MapTypeId | string;
   customStyles?: google.maps.MapTypeStyle[];
   enableTilt?: boolean;
+  enableDrawing?: boolean;
 }
 
 const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
@@ -23,29 +25,31 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   zoom,
   markerPos,
   onMapClick,
+  mapRef,
   mapTypeId = 'roadmap',
   customStyles,
   enableTilt = false,
+  enableDrawing = false,
 }) => {
-  const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerInstanceRef = useRef<google.maps.Marker | null>(null);
   const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
+  const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
 
   useEffect(() => {
-    if (!apiKey && mapContainerRef.current) {
-      mapContainerRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Google Maps API Key is missing. Map cannot be displayed.</p>';
+    if (!apiKey && mapRef.current) {
+      mapRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Google Maps API Key is missing. Map cannot be displayed.</p>';
       setIsMapInitialized(false);
       if (mapInstanceRef.current) mapInstanceRef.current = null;
       if (coverageLayerRef.current) coverageLayerRef.current.setMap(null);
       return;
     }
 
-    if (isApiLoaded && mapContainerRef.current && typeof window.google !== 'undefined' && window.google.maps) {
+    if (isApiLoaded && mapRef.current && typeof window.google !== 'undefined' && window.google.maps) {
       if (!mapInstanceRef.current) {
         try {
-          mapInstanceRef.current = new window.google.maps.Map(mapContainerRef.current, {
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
             center: center,
             zoom: zoom,
             mapTypeId: mapTypeId,
@@ -70,8 +74,8 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         } catch (e: any) {
           console.error("Error initializing Google Map:", e);
           setIsMapInitialized(false);
-          if (mapContainerRef.current) {
-              mapContainerRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Error initializing Google Map: ${e.message}</p>`;
+          if (mapRef.current) {
+              mapRef.current.innerHTML = `<p class="text-center p-4 text-destructive">Error initializing Google Map: ${e.message}</p>`;
           }
         }
       } else {
@@ -86,14 +90,73 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
           coverageLayerRef.current.setMap(mapInstanceRef.current);
         }
       }
-    } else if (!isApiLoaded && mapContainerRef.current) {
-        mapContainerRef.current.innerHTML = ''; 
+    } else if (!isApiLoaded && mapRef.current) {
+        mapRef.current.innerHTML = ''; 
         setIsMapInitialized(false);
         if (mapInstanceRef.current) mapInstanceRef.current = null;
         if (coverageLayerRef.current) coverageLayerRef.current.setMap(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, isApiLoaded, mapTypeId, JSON.stringify(customStyles), enableTilt]);
+  
+  // Effect to manage the drawing manager
+  useEffect(() => {
+    if (!isMapInitialized || !window.google?.maps?.drawing) {
+        return;
+    }
+
+    if (enableDrawing) {
+        if (!drawingManagerRef.current) {
+            drawingManagerRef.current = new window.google.maps.drawing.DrawingManager({
+                drawingMode: window.google.maps.drawing.OverlayType.MARKER,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: window.google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: [
+                        window.google.maps.drawing.OverlayType.MARKER,
+                        window.google.maps.drawing.OverlayType.CIRCLE,
+                        window.google.maps.drawing.OverlayType.POLYGON,
+                        window.google.maps.drawing.OverlayType.POLYLINE,
+                        window.google.maps.drawing.OverlayType.RECTANGLE,
+                    ],
+                },
+                markerOptions: {
+                    icon: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                },
+                circleOptions: {
+                    fillColor: '#ffff00',
+                    fillOpacity: 0.2,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 1,
+                },
+                polygonOptions: {
+                    fillColor: '#3F51B5',
+                    fillOpacity: 0.2,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 1,
+                },
+                rectangleOptions: {
+                     fillColor: '#3F51B5',
+                    fillOpacity: 0.2,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 1,
+                }
+            });
+        }
+        drawingManagerRef.current.setMap(mapInstanceRef.current);
+    } else {
+        if (drawingManagerRef.current) {
+            drawingManagerRef.current.setMap(null);
+        }
+    }
+  }, [isMapInitialized, enableDrawing]);
+
 
   useEffect(() => {
     if (mapInstanceRef.current && isMapInitialized) { 
@@ -126,6 +189,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
       if (markerInstanceRef.current) {
         markerInstanceRef.current.setMap(null);
       }
+      if (drawingManagerRef.current) {
+        drawingManagerRef.current.setMap(null);
+      }
     };
   }, []);
 
@@ -149,11 +215,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
           <p className="ml-2 text-foreground">Initializing Map...</p>
         </div>
       )}
-      <div ref={mapContainerRef} className="w-full h-full rounded-lg" />
+      <div ref={mapRef} className="w-full h-full rounded-lg" />
     </div>
   );
 };
 
 export default MapViewDisplay;
-
-    
