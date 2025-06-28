@@ -1,30 +1,40 @@
 
 'use client';
 
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarFooter,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
-} from '@/components/ui/sidebar';
-import { Camera, Settings, User, LayoutGrid, Compass, DollarSign, RotateCcw, PanelLeft, Bell, Trash2 } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import {
+  Bell,
+  Camera,
+  DollarSign,
+  Menu,
+  RotateCcw,
+  Settings,
+  Trash2,
+  User,
+  Compass,
+  LayoutGrid
+} from 'lucide-react';
+
 import { useAppContext } from '@/context/AppContext';
-import React, { useEffect } from 'react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { formatDistanceToNow } from 'date-fns';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 export default function AppLayout({
@@ -34,14 +44,21 @@ export default function AppLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, sessionCosts, resetSessionCosts, notifications, markAllAsRead, clearNotifications } = useAppContext();
-  const [isCheckingAuth, setIsCheckingAuth] = React.useState(true);
+  const { 
+    isAuthenticated,
+    logout,
+    sessionCosts, 
+    resetSessionCosts, 
+    notifications, 
+    markAllAsRead, 
+    clearNotifications 
+  } = useAppContext();
+  
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
 
-
   useEffect(() => {
-    // This check ensures that we don't redirect on the server or during initial hydration.
-    // It waits until the client-side has determined the auth state.
     if (typeof isAuthenticated === 'boolean') {
       if (!isAuthenticated) {
         router.push('/login');
@@ -51,6 +68,11 @@ export default function AppLayout({
     }
   }, [isAuthenticated, router]);
   
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
   if (isCheckingAuth) {
     return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -65,23 +87,99 @@ export default function AppLayout({
     );
   }
 
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
   return (
-    <SidebarProvider defaultOpen={true}>
-      <Sidebar variant="floating" collapsible="icon" side="left" className="border-none">
-        <SidebarHeader className="p-4 border-b border-sidebar-border flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 outline-none">
-            <Camera className="w-8 h-8 text-primary" />
-            <h1 className="text-xl font-semibold text-sidebar-foreground group-data-[state=collapsed]:hidden">GenScoutAI</h1>
+    <div className="flex min-h-screen w-full flex-col">
+      <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/80 px-4 md:px-6 z-40 backdrop-blur-lg">
+        <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+          <Link
+            href="/scout"
+            className="flex items-center gap-2 text-lg font-semibold md:text-base"
+          >
+            <Camera className="h-7 w-7 text-primary" />
+            <span className="font-bold text-xl">GenScoutAI</span>
           </Link>
-          <div className="flex items-center gap-1 group-data-[state=collapsed]:hidden">
+          <Link
+            href="/scout"
+            className={cn(
+                "transition-colors hover:text-foreground",
+                pathname.startsWith('/scout') ? 'text-foreground font-medium' : 'text-muted-foreground'
+            )}
+          >
+            Scout
+          </Link>
+          <Link
+            href="/gallery"
+            className={cn(
+                "transition-colors hover:text-foreground",
+                pathname === '/gallery' ? 'text-foreground font-medium' : 'text-muted-foreground'
+            )}
+          >
+            Media Gallery
+          </Link>
+          <Link
+            href="/settings"
+            className={cn(
+                "transition-colors hover:text-foreground",
+                pathname === '/settings' ? 'text-foreground font-medium' : 'text-muted-foreground'
+            )}
+          >
+            Settings
+          </Link>
+        </nav>
+        
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0 md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left">
+            <nav className="grid gap-6 text-lg font-medium">
+              <Link
+                href="/scout"
+                onClick={closeMobileMenu}
+                className="flex items-center gap-2 text-lg font-semibold"
+              >
+                <Camera className="h-6 w-6 text-primary" />
+                <span className="font-bold">GenScoutAI</span>
+              </Link>
+              <Link href="/scout" onClick={closeMobileMenu} className={cn("flex items-center gap-4 px-2.5", pathname.startsWith('/scout') ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                <Compass className="h-5 w-5" />
+                Scout
+              </Link>
+              <Link
+                href="/gallery"
+                onClick={closeMobileMenu}
+                className={cn("flex items-center gap-4 px-2.5", pathname === '/gallery' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+              >
+                <LayoutGrid className="h-5 w-5" />
+                Media Gallery
+              </Link>
+              <Link href="/settings" onClick={closeMobileMenu} className={cn("flex items-center gap-4 px-2.5", pathname === '/settings' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                <Settings className="h-5 w-5" />
+                Settings
+              </Link>
+            </nav>
+          </SheetContent>
+        </Sheet>
+
+        <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
+            <div className="ml-auto flex-shrink-0">
                 <Popover>
                     <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                        <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
                             <DollarSign className="mr-1 h-3 w-3" />
                             ~${sessionCosts.totalEstimatedCost.toFixed(4)}
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-80" side="right" align="start">
+                    <PopoverContent className="w-80" side="bottom" align="end">
                         <div className="grid gap-4">
                             <div className="space-y-2">
                                 <h4 className="font-medium leading-none">Session Cost Estimate</h4>
@@ -106,7 +204,8 @@ export default function AppLayout({
                         </div>
                     </PopoverContent>
                 </Popover>
-
+            </div>
+            <div className="flex-shrink-0">
                 <Popover onOpenChange={(isOpen) => { if (!isOpen) { markAllAsRead(); } }}>
                     <PopoverTrigger asChild>
                     <Button variant="ghost" size="icon" className="relative h-8 w-8">
@@ -149,62 +248,32 @@ export default function AppLayout({
                         </ScrollArea>
                     </PopoverContent>
                 </Popover>
-          </div>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/scout' || pathname.startsWith('/scout')} tooltip={{children: "Scout"}}>
-                <Link href="/scout" title="Scout">
-                  <Compass />
-                  Scout
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/gallery'} tooltip={{children: "Media Gallery"}}>
-                <Link href="/gallery" title="Media Gallery">
-                  <LayoutGrid />
-                  Media Gallery
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={pathname === '/settings'} tooltip={{children: "Settings"}}>
-                <Link href="/settings" title="Settings">
-                  <Settings />
-                  Settings
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarContent>
-        <SidebarFooter className="p-4 mt-auto border-t border-sidebar-border flex flex-col items-stretch gap-2">
-           <SidebarMenu>
-             <SidebarMenuItem>
-               <SidebarMenuButton asChild isActive={pathname === '/account'} tooltip={{children: "Account"}}>
-                 <Link href="/account" title="Account">
-                   <User />
-                   Account
-                 </Link>
-               </SidebarMenuButton>
-             </SidebarMenuItem>
-           </SidebarMenu>
-           <div className="flex justify-end">
-             <SidebarTrigger />
-           </div>
-        </SidebarFooter>
-      </Sidebar>
-      <SidebarInset className="p-0">
-        <header className="p-2 border-b md:hidden flex items-center gap-2 sticky top-0 bg-background/80 backdrop-blur-lg z-10">
-          <SidebarTrigger />
-          <Link href="/" className="flex items-center gap-2 outline-none font-semibold">
-            <Camera className="w-6 h-6 text-primary" />
-            GenScoutAI
-          </Link>
-        </header>
+            </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="secondary" size="icon" className="rounded-full">
+                <User className="h-5 w-5" />
+                <span className="sr-only">Toggle user menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/account">Account & Billing</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings">Settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+      <main className="flex flex-1 flex-col bg-muted/40">
         {children}
-      </SidebarInset>
-    </SidebarProvider>
+      </main>
+    </div>
   );
 }
