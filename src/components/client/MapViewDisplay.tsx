@@ -54,6 +54,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
             streetViewControl: false, // Important: disable default pegman
             fullscreenControl: false,
             tilt: enableTilt ? 45 : 0,
+            gestureHandling: 'greedy',
           });
 
           mapInstanceRef.current.addListener('click', (mapsMouseEvent: google.maps.MapMouseEvent) => {
@@ -75,7 +76,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         }
       } else {
         mapInstanceRef.current.setMapTypeId(mapTypeId);
-        mapInstanceRef.current.setOptions({ styles: customStyles });
+        mapInstanceRef.current.setOptions({ styles: customStyles, gestureHandling: 'greedy' });
         mapInstanceRef.current.setTilt(enableTilt ? 45 : 0);
 
         if (!coverageLayerRef.current && mapInstanceRef.current) {
