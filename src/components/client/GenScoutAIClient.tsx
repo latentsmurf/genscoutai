@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -114,12 +115,13 @@ export default function GenScoutAIClient() {
 
   const [moodBoardImages, setMoodBoardImages] = useState<string[]>([]);
   const [isGeneratingVariations, setIsGeneratingVariations] = useState<boolean>(false);
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
-
+  
   // New state for Place Photos
   const [currentPlaceId, setCurrentPlaceId] = useState<string | null>(null);
   const [placePhotos, setPlacePhotos] = useState<google.maps.places.PlacePhoto[]>([]);
   const [isLoadingPlacePhotos, setIsLoadingPlacePhotos] = useState<boolean>(false);
+  
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -530,6 +532,8 @@ export default function GenScoutAIClient() {
 
     return () => {
       if (autocompleteRef.current && window.google?.maps?.event) {
+        // The Autocomplete instance is automatically cleaned up by the Maps JS API.
+        // We only need to clear our own listeners on it.
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
@@ -739,7 +743,7 @@ export default function GenScoutAIClient() {
     addNotification({ title: "Preparing Photo...", description: "Using selected image with AI." });
 
     // Directly use the image URL. The Genkit flow will handle fetching it.
-    const imageUrl = photo.getUrl({ maxWidth: 800 });
+    const imageUrl = photo.getUrl({ maxWidth: 1600 });
     
     setLastBaseImageSource(imageUrl);
     setModificationPrompt("");
@@ -868,7 +872,7 @@ export default function GenScoutAIClient() {
   }
 
   return (
-      <div className="flex h-full flex-col md:flex-row">
+      <div className="flex flex-1 flex-col md:flex-row">
         {/* LEFT CONTROL PANEL */}
         <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col rounded-none shadow-none border-0 border-b md:border-r md:border-b-0">
           <CardHeader className="flex-row items-center gap-4 border-b">
