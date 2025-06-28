@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -35,6 +34,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 
 export default function AppLayout({
@@ -92,42 +97,62 @@ export default function AppLayout({
   return (
     <div className="flex min-h-screen w-full flex-col">
       <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background/80 px-4 md:px-6 z-40 backdrop-blur-lg">
-        <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
-          <Link
-            href="/scout"
-            className="flex items-center gap-2 text-lg font-semibold md:text-base"
-          >
-            <Camera className="h-7 w-7 text-primary" />
-            <span className="font-bold text-xl">GenScoutAI</span>
-          </Link>
-          <Link
-            href="/scout"
-            className={cn(
-                "transition-colors hover:text-foreground",
-                pathname.startsWith('/scout') ? 'text-foreground font-medium' : 'text-muted-foreground'
-            )}
-          >
-            Scout
-          </Link>
-          <Link
-            href="/gallery"
-            className={cn(
-                "transition-colors hover:text-foreground",
-                pathname === '/gallery' ? 'text-foreground font-medium' : 'text-muted-foreground'
-            )}
-          >
-            Media Gallery
-          </Link>
-          <Link
-            href="/settings"
-            className={cn(
-                "transition-colors hover:text-foreground",
-                pathname === '/settings' ? 'text-foreground font-medium' : 'text-muted-foreground'
-            )}
-          >
-            Settings
-          </Link>
-        </nav>
+        <nav className="hidden items-center gap-1 text-lg font-medium md:flex md:flex-row md:items-center md:gap-2 md:text-sm lg:gap-4">
+            <Link
+              href="/scout"
+              className="flex items-center gap-2 text-lg font-semibold md:text-base mr-4"
+            >
+              <Camera className="h-7 w-7 text-primary" />
+              <span className="font-bold text-xl">GenScoutAI</span>
+            </Link>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                    <Link
+                      href="/scout"
+                      className={cn(
+                          "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
+                          pathname.startsWith('/scout') ? 'bg-accent text-accent-foreground' : ''
+                      )}
+                    >
+                      <Compass className="h-5 w-5" />
+                      <span className="sr-only">Scout</span>
+                    </Link>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Scout</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/gallery"
+                    className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
+                        pathname === '/gallery' ? 'bg-accent text-accent-foreground' : ''
+                    )}
+                  >
+                    <LayoutGrid className="h-5 w-5" />
+                    <span className="sr-only">Media Gallery</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Media Gallery</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Link
+                    href="/settings"
+                    className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
+                        pathname === '/settings' ? 'bg-accent text-accent-foreground' : ''
+                    )}
+                  >
+                    <Settings className="h-5 w-5" />
+                    <span className="sr-only">Settings</span>
+                  </Link>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Settings</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </nav>
         
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetTrigger asChild>
