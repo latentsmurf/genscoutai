@@ -4,12 +4,12 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyB6M7XNNWMjCQD9bcRkB0Aiq0U1EWRztR4",
+  authDomain: "genscoutai-5phlw.firebaseapp.com",
+  projectId: "genscoutai-5phlw",
+  storageBucket: "genscoutai-5phlw.appspot.com",
+  messagingSenderId: "73196441182",
+  appId: "1:73196441182:web:9c99cd3235266d5f2f2ecf"
 };
 
 let app: FirebaseApp | null = null;
@@ -19,14 +19,6 @@ let storage: FirebaseStorage | null = null;
 let firebaseError: string | null = null;
 
 try {
-  // Basic check for placeholder values or missing keys.
-  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('YOUR_')) {
-    throw new Error("Firebase API Key is missing or is a placeholder. Please set NEXT_PUBLIC_FIREBASE_API_KEY and other variables in your .env.local file.");
-  }
-  if (!firebaseConfig.projectId) {
-     throw new Error("Firebase Project ID is missing. Please set NEXT_PUBLIC_FIREBASE_PROJECT_ID in your .env.local file.");
-  }
-  
   app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
   db = getFirestore(app);

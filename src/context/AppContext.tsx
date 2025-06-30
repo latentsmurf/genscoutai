@@ -69,36 +69,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-function FirebaseConfigErrorDisplay({ error }: { error: string }) {
-  return (
-    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#fffbe6', color: '#78350f', border: '1px solid #fde68a', borderRadius: '8px', margin: '2rem auto', maxWidth: '800px', fontFamily: 'sans-serif', lineHeight: '1.6' }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Firebase Configuration Error</h1>
-      <p style={{ marginTop: '1rem', fontFamily: 'monospace', backgroundColor: '#fef3c7', padding: '1rem', borderRadius: '4px', wordBreak: 'break-all', border: '1px solid #fde68a' }}>
-        {error}
-      </p>
-      <p style={{ marginTop: '1.5rem' }}>
-        This app requires Firebase services to run. Please create a <strong>.env.local</strong> file in the root of your project and add your Firebase project's web configuration.
-      </p>
-      <p style={{ marginTop: '0.5rem', color: '#92400e' }}>
-        You can find these values in your Firebase project settings under "General" &gt; "Your apps" &gt; "Web app" &gt; "SDK setup and configuration".
-      </p>
-      <pre style={{ marginTop: '1.5rem', textAlign: 'left', backgroundColor: '#f3f4f6', padding: '1rem', borderRadius: '4px', overflowX: 'auto', border: '1px solid #e5e7eb' }}>
-        <code>
-{`NEXT_PUBLIC_FIREBASE_API_KEY=...
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
-NEXT_PUBLIC_FIREBASE_APP_ID=...`}
-        </code>
-      </pre>
-      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
-        After adding the file, you will need to <strong>restart the development server</strong> for the changes to take effect.
-      </p>
-    </div>
-  );
-}
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -109,7 +79,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   if (firebaseError) {
-    return <FirebaseConfigErrorDisplay error={firebaseError} />;
+    return (
+        <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#fffbe6', color: '#78350f', border: '1px solid #fde68a', borderRadius: '8px', margin: '2rem auto', maxWidth: '800px', fontFamily: 'sans-serif', lineHeight: '1.6' }}>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Firebase Initialization Error</h1>
+        <p style={{ marginTop: '1rem' }}>An error occurred while connecting to Firebase.</p>
+        <pre style={{ marginTop: '1rem', textAlign: 'left', backgroundColor: '#f3f4f6', padding: '1rem', borderRadius: '4px', overflowX: 'auto', border: '1px solid #e5e7eb' }}>
+            <code>{firebaseError}</code>
+        </pre>
+        <p style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
+            Please check your Firebase project configuration and security rules (e.g., for Firestore and Storage). Ensure the provided keys in the code are correct and the services are enabled.
+        </p>
+        </div>
+    );
   }
 
   const addNotification = useCallback((notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
