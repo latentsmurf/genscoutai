@@ -1,4 +1,5 @@
 
+
 export interface Project {
   id: string;
   name: string;
@@ -40,4 +41,17 @@ export interface Shot {
   cameraAngle: string;
   shotDescription: string;
   notes?: string;
+}
+
+export interface Vendor {
+  name: string;
+  category: string;
+  address: string;
+  phone?: string;
+  website?: string;
+  rating?: number;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
 }

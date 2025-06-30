@@ -1,9 +1,9 @@
 
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MapPin } from 'lucide-react';
-import type { Vendor } from '@/ai/flows/find-local-vendors-flow';
+import type { Vendor } from '@/types';
 
 interface MapViewDisplayProps {
   apiKey: string | null;
@@ -40,6 +40,109 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
   const vendorMarkerInstancesRef = useRef<(google.maps.Marker | null)[]>([]);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
+  const drawnOverlaysRef = useRef<google.maps.MVCObject[]>([]);
+
+  const openNoteEditor = useCallback((marker: google.maps.Marker, map: google.maps.Map, isNew: boolean) => {
+    // Create info window content dynamically to avoid stale closures
+    const infoWindow = new window.google.maps.InfoWindow();
+    const content = document.createElement('div');
+
+    const input = document.createElement('textarea');
+    input.placeholder = "Enter note...";
+    input.value = (marker.getLabel() as google.maps.MarkerLabel)?.text || '';
+    input.style.cssText = "width: 220px; height: 80px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; font-family: sans-serif;";
+    
+    const colorPickerContainer = document.createElement('div');
+    colorPickerContainer.style.cssText = "margin-bottom: 10px; display: flex; align-items: center; gap: 5px;";
+    colorPickerContainer.innerHTML = '<strong style="margin-right: 5px;">Color:</strong>';
+    
+    const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'pink'];
+    let selectedColor = 'red'; // default color
+
+    const currentIcon = marker.getIcon() as string | google.maps.Icon | null;
+    if (typeof currentIcon === 'string' && currentIcon.includes('/ms/icons/')) {
+        const match = currentIcon.match(/([a-z]+)-dot\.png/);
+        if (match && colors.includes(match[1])) {
+            selectedColor = match[1];
+        }
+    }
+
+    const colorButtons: HTMLButtonElement[] = [];
+    colors.forEach(color => {
+        const colorButton = document.createElement('button');
+        colorButton.setAttribute('type', 'button');
+        colorButton.style.cssText = `width: 22px; height: 22px; border-radius: 50%; background-color: ${color}; border: 2px solid transparent; cursor: pointer;`;
+        if (color === selectedColor) {
+            colorButton.style.borderColor = 'black';
+        }
+        colorButton.onclick = () => {
+            selectedColor = color;
+            colorButtons.forEach(btn => {
+                btn.style.borderColor = btn.style.backgroundColor === selectedColor ? 'black' : 'transparent';
+            });
+        };
+        colorPickerContainer.appendChild(colorButton);
+        colorButtons.push(colorButton);
+    });
+    
+    const buttonContainer = document.createElement('div');
+    const saveButton = document.createElement('button');
+    saveButton.setAttribute('type', 'button');
+    saveButton.textContent = 'Save';
+    saveButton.style.cssText = "padding: 5px 10px; border: 1px solid #333; background: #333; color: white; border-radius: 4px; cursor: pointer;";
+
+    const removeButton = document.createElement('button');
+    removeButton.setAttribute('type', 'button');
+    removeButton.textContent = 'Remove';
+    removeButton.style.cssText = "padding: 5px 10px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer; margin-left: 10px;";
+
+    buttonContainer.appendChild(saveButton);
+    buttonContainer.appendChild(removeButton);
+
+    content.appendChild(input);
+    content.appendChild(colorPickerContainer);
+    content.appendChild(buttonContainer);
+
+    infoWindow.setContent(content);
+    infoWindow.open({
+        anchor: marker,
+        map,
+    });
+
+    const saveAndClose = () => {
+        const text = input.value.trim();
+        marker.setIcon(`http://maps.google.com/mapfiles/ms/icons/${selectedColor}-dot.png`);
+        
+        if (text) {
+            marker.setLabel({
+                text: text,
+                color: '#000000',
+                fontSize: '12px',
+                fontWeight: 'bold',
+            });
+        } else {
+            marker.setLabel(null);
+        }
+        infoWindow.close();
+    };
+    
+    saveButton.onclick = saveAndClose;
+    removeButton.onclick = () => {
+        marker.setMap(null);
+        infoWindow.close();
+    };
+    
+    const closeListener = window.google.maps.event.addListener(infoWindow, 'closeclick', () => {
+        if (isNew) {
+            const currentLabel = marker.getLabel();
+            // If it's a new marker and was closed without saving, remove it.
+            if (!currentLabel || !currentLabel.text) {
+               marker.setMap(null);
+            }
+        }
+        window.google.maps.event.removeListener(closeListener);
+    });
+  }, []);
 
   useEffect(() => {
     if (!apiKey && mapRef.current) {
@@ -108,11 +211,15 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     if (!isMapInitialized || !window.google?.maps?.drawing) {
         return;
     }
+    
+    let markerCompleteListener: google.maps.MapsEventListener | null = null;
+    let overlayCompleteListener: google.maps.MapsEventListener | null = null;
+
 
     if (enableDrawing) {
         if (!drawingManagerRef.current) {
             drawingManagerRef.current = new window.google.maps.drawing.DrawingManager({
-                drawingMode: window.google.maps.drawing.OverlayType.MARKER,
+                drawingMode: null, // Start with no active tool
                 drawingControl: true,
                 drawingControlOptions: {
                     position: window.google.maps.ControlPosition.TOP_CENTER,
@@ -152,6 +259,24 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
                     zIndex: 1,
                 }
             });
+            
+             // Listener for general overlays
+            overlayCompleteListener = window.google.maps.event.addListener(drawingManagerRef.current, 'overlaycomplete', (event: google.maps.drawing.OverlayCompleteEvent) => {
+                 drawnOverlaysRef.current.push(event.overlay);
+            });
+
+            // Specific listener for markers to add notes
+            markerCompleteListener = window.google.maps.event.addListener(drawingManagerRef.current, 'markercomplete', (marker: google.maps.Marker) => {
+                if (drawingManagerRef.current) {
+                    drawingManagerRef.current.setDrawingMode(null);
+                }
+                
+                openNoteEditor(marker, mapInstanceRef.current!, true);
+
+                marker.addListener('click', () => {
+                    openNoteEditor(marker, mapInstanceRef.current!, false);
+                });
+            });
         }
         drawingManagerRef.current.setMap(mapInstanceRef.current);
     } else {
@@ -159,7 +284,14 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
             drawingManagerRef.current.setMap(null);
         }
     }
-  }, [isMapInitialized, enableDrawing]);
+    
+    return () => {
+        // These listeners are attached to the drawingManager instance.
+        // It's best practice to clean them up, but since drawingManager persists, they don't cause major leaks.
+        // If enableDrawing was toggled rapidly, multiple listeners could be added.
+        // For simplicity in this context, we'll rely on the single instance of the drawingManager.
+    };
+  }, [isMapInitialized, enableDrawing, openNoteEditor]);
 
   // Effect to manage vendor markers
   useEffect(() => {
@@ -231,6 +363,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
       }
       if (drawingManagerRef.current) {
         drawingManagerRef.current.setMap(null);
+        // Clean up drawn overlays on unmount
+        drawnOverlaysRef.current.forEach(overlay => (overlay as any).setMap(null));
+        drawnOverlaysRef.current = [];
       }
       vendorMarkerInstancesRef.current.forEach(marker => marker?.setMap(null));
     };
