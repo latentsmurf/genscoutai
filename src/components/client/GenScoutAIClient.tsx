@@ -30,7 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages, Banknote, Calculator } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -151,6 +151,11 @@ export default function GenScoutAIClient() {
   // New state for Shot List
   const [shotList, setShotList] = useState<Shot[] | null>(null);
   const [isLoadingShotList, setIsLoadingShotList] = useState<boolean>(false);
+
+  // New state for Budget Estimator
+  const [crewSize, setCrewSize] = useState<number>(15);
+  const [shootingDays, setShootingDays] = useState<number>(3);
+  const [budgetTier, setBudgetTier] = useState<string>('indie');
 
 
   const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan || isLoadingPermitInfo || isLoadingVendors || isLoadingLogistics || isLoadingShotList;
@@ -694,6 +699,20 @@ const handleTranslateImageText = useCallback(() => {
     });
 }, [addNotification]);
 
+const handleVendorSubmission = () => {
+    addNotification({
+        title: "Vendor Submission Portal (Conceptual)",
+        description: "In a full implementation, this would open a form to submit a new vendor for review. This helps build a community-curated list of trusted services."
+    });
+};
+
+const handleBudgetEstimation = () => {
+    addNotification({
+        title: "Budget Estimate (Conceptual)",
+        description: `A real estimator would use location data, permit fees, and your inputs (${crewSize} crew, ${shootingDays} days, ${budgetTier} tier) to generate a rough budget. This feature is planned for a future update.`
+    });
+};
+
 
   useEffect(() => {
     setIsClient(true);
@@ -1086,9 +1105,9 @@ const handleTranslateImageText = useCallback(() => {
   }
 
   return (
-      <div className="flex flex-1 flex-col md:flex-row">
+      <div className="flex-1 flex flex-col md:flex-row p-0 gap-0">
         {/* LEFT CONTROL PANEL */}
-        <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col rounded-none shadow-none border-0 border-b md:border-r md:border-b-0">
+        <Card className="w-full md:w-[400px] flex-shrink-0 flex flex-col rounded-none shadow-none border-0 border-r">
           <CardHeader className="flex-row items-center gap-4 border-b">
             <Compass className="w-8 h-8 hidden md:block" />
             <div>
@@ -1250,6 +1269,42 @@ const handleTranslateImageText = useCallback(() => {
                                 )}
                             </AccordionContent>
                         </AccordionItem>
+                         <AccordionItem value="budget">
+                            <AccordionTrigger className="text-base" disabled={!markerPosition}>
+                                <div className="flex items-center gap-2"><Banknote className="w-4 h-4" /> Budget Rough Estimator</div>
+                            </AccordionTrigger>
+                            <AccordionContent className="space-y-4">
+                                <p className="text-xs text-muted-foreground italic">This is a conceptual tool to provide rough cost estimates.</p>
+                                <div className="space-y-2">
+                                    <Label htmlFor="budget-tier">Budget Tier</Label>
+                                    <Select value={budgetTier} onValueChange={setBudgetTier}>
+                                        <SelectTrigger id="budget-tier">
+                                            <SelectValue placeholder="Select tier" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="indie">Tier 1: Indie / Student</SelectItem>
+                                            <SelectItem value="commercial">Tier 2: Commercial Shoot</SelectItem>
+                                            <SelectItem value="pilot">Tier 3: TV Pilot / Feature</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="crew-size">Crew Size ({crewSize})</Label>
+                                    <Slider id="crew-size" min={1} max={100} step={1} value={[crewSize]} onValueChange={(v) => setCrewSize(v[0])} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="shooting-days">Shooting Days ({shootingDays})</Label>
+                                    <Slider id="shooting-days" min={1} max={30} step={1} value={[shootingDays]} onValueChange={(v) => setShootingDays(v[0])} />
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t">
+                                    <p className="font-semibold">Estimated Range:</p>
+                                    <p className="font-semibold text-primary">$XX,XXX - $XX,XXX</p>
+                                </div>
+                                <Button size="sm" onClick={handleBudgetEstimation}>
+                                    <Calculator className="mr-2 h-4 w-4" /> Calculate (Conceptual)
+                                </Button>
+                            </AccordionContent>
+                        </AccordionItem>
                       </Accordion>
                   </div>
               </TabsContent>
@@ -1346,6 +1401,10 @@ const handleTranslateImageText = useCallback(() => {
                 ) : (
                     <p className="text-sm text-muted-foreground italic pt-2">Select a category to find nearby vendors.</p>
                 )}
+                 <Separator />
+                  <Button variant="outline" className="w-full" onClick={handleVendorSubmission}>
+                    <MessageSquarePlus className="mr-2 h-4 w-4" /> Submit a Vendor
+                  </Button>
               </TabsContent>
               </div>
             </ScrollArea>
@@ -1353,13 +1412,13 @@ const handleTranslateImageText = useCallback(() => {
         </Card>
 
         {/* RIGHT DISPLAY PANEL */}
-        <div className="flex-1 flex flex-col relative">
+        <div className="flex-1 flex flex-col relative p-4">
           {currentDisplayMode === 'streetview' && (
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => setIsUiHidden(!isUiHidden)}
-                className="absolute top-2 right-2 z-50 bg-background/80 hover:bg-background rounded-full shadow-lg"
+                className="absolute top-6 right-6 z-50 bg-background/80 hover:bg-background rounded-full shadow-lg"
                 title={isUiHidden ? "Show Controls" : "Hide Controls"}
               >
                 {isUiHidden ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
@@ -1367,7 +1426,7 @@ const handleTranslateImageText = useCallback(() => {
           )}
 
           {!isUiHidden && (
-            <Card className="m-4 mb-0">
+            <Card className="mb-4">
               <CardHeader className="p-4 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                    <CardTitle className="text-lg">Viewport</CardTitle>
@@ -1444,7 +1503,7 @@ const handleTranslateImageText = useCallback(() => {
           )}
 
           {!isUiHidden && currentDisplayMode === 'streetview' && (
-            <Card className="m-4 mb-0">
+            <Card className="mb-4">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-lg">Shot Configuration</CardTitle>
               </CardHeader>
@@ -1564,7 +1623,7 @@ const handleTranslateImageText = useCallback(() => {
 
           <div
             className={cn(
-              "relative flex-1 m-4",
+              "relative flex-1",
               isUiHidden && currentDisplayMode === 'streetview'
                 ? "fixed inset-0 z-0 w-screen h-screen !m-0 rounded-none"
                 : "min-h-[300px] sm:min-h-[400px] md:min-h-0"
@@ -1703,13 +1762,6 @@ const handleTranslateImageText = useCallback(() => {
                             <TabsTrigger value="shotlist">Shot List</TabsTrigger>
                         </TabsList>
                         <TabsContent value="actions" className="mt-4 space-y-4 pt-4 border-t">
-                            <div className="flex justify-start">
-                                <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
-                                    <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                                    Regenerate with new parameters
-                                </Button>
-                            </div>
-
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
@@ -1785,6 +1837,12 @@ const handleTranslateImageText = useCallback(() => {
                                     </div>
                                     )}
                                 </div>
+                            </div>
+                            <div className="flex justify-start pt-4 border-t">
+                                <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
+                                    <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                    Regenerate with new parameters
+                                </Button>
                             </div>
                             <div className="space-y-2 pt-4 border-t">
                                 <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
