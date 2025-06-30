@@ -16,7 +16,7 @@ const VendorSchema = z.object({
   category: z.string().describe('The category of the vendor (e.g., "Camera Rental", "Catering").'),
   address: z.string().describe('The physical address of the vendor.'),
   phone: z.string().optional().describe('The contact phone number.'),
-  website: z.string().url().optional().describe("The vendor's website."),
+  website: z.string().optional().describe("The vendor's website."),
   rating: z.number().min(1).max(5).optional().describe('A user rating, from 1 to 5.'),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).describe('The geographic coordinates of the vendor.'),
 });

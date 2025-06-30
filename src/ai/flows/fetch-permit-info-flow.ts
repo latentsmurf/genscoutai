@@ -21,13 +21,13 @@ export type FetchPermitInfoInput = z.infer<typeof FetchPermitInfoInputSchema>;
 const FetchPermitInfoOutputSchema = z.object({
   filmCommission: z.object({
     name: z.string().describe("The name of the primary film commission or office for the area (e.g., 'California Film Commission', 'Film London')."),
-    website: z.string().url().describe("The official website URL for the film commission."),
+    website: z.string().describe("The official website URL for the film commission."),
     phone: z.string().optional().describe("A contact phone number for the commission."),
-    email: z.string().email().optional().describe("A contact email for the commission."),
+    email: z.string().optional().describe("A contact email for the commission."),
   }),
   regulationSummary: z.string().describe("A concise summary of key regulations, such as typical lead times, insurance requirements, or restrictions on drone usage. Formatted as a bulleted list in a single string."),
   knownFees: z.string().describe("A summary of known or estimated application fees or daily permit costs. Can be a range. (e.g., '$150 - $500 per day depending on impact')."),
-  linkToGuidelines: z.string().url().describe("A direct URL to a PDF or webpage with official filming guidelines, if found."),
+  linkToGuidelines: z.string().describe("A direct URL to a PDF or webpage with official filming guidelines, if found."),
 });
 export type FetchPermitInfoOutput = z.infer<typeof FetchPermitInfoOutputSchema>;
 
