@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { Project, GeneratedImage } from '@/types';
-import { auth, db, storage } from '@/lib/firebase';
+import { auth, db, storage, firebaseError } from '@/lib/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, updateDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -69,6 +69,36 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+function FirebaseConfigErrorDisplay({ error }: { error: string }) {
+  return (
+    <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#fffbe6', color: '#78350f', border: '1px solid #fde68a', borderRadius: '8px', margin: '2rem auto', maxWidth: '800px', fontFamily: 'sans-serif', lineHeight: '1.6' }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Firebase Configuration Error</h1>
+      <p style={{ marginTop: '1rem', fontFamily: 'monospace', backgroundColor: '#fef3c7', padding: '1rem', borderRadius: '4px', wordBreak: 'break-all', border: '1px solid #fde68a' }}>
+        {error}
+      </p>
+      <p style={{ marginTop: '1.5rem' }}>
+        This app requires Firebase services to run. Please create a <strong>.env.local</strong> file in the root of your project and add your Firebase project's web configuration.
+      </p>
+      <p style={{ marginTop: '0.5rem', color: '#92400e' }}>
+        You can find these values in your Firebase project settings under "General" &gt; "Your apps" &gt; "Web app" &gt; "SDK setup and configuration".
+      </p>
+      <pre style={{ marginTop: '1.5rem', textAlign: 'left', backgroundColor: '#f3f4f6', padding: '1rem', borderRadius: '4px', overflowX: 'auto', border: '1px solid #e5e7eb' }}>
+        <code>
+{`NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+NEXT_PUBLIC_FIREBASE_APP_ID=...`}
+        </code>
+      </pre>
+      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem' }}>
+        After adding the file, you will need to <strong>restart the development server</strong> for the changes to take effect.
+      </p>
+    </div>
+  );
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -77,6 +107,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [sessionCosts, setSessionCosts] = useState<SessionCosts>(initialSessionCosts);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  if (firebaseError) {
+    return <FirebaseConfigErrorDisplay error={firebaseError} />;
+  }
 
   const addNotification = useCallback((notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
     const newNotification: AppNotification = {
@@ -90,6 +124,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchProjects = useCallback(async (uid: string) => {
+    if (!db) return;
     setIsProjectsLoading(true);
     try {
       const q = query(collection(db, `users/${uid}/projects`), orderBy('createdAt', 'desc'));
@@ -122,6 +157,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [addNotification, activeProjectId]);
 
   useEffect(() => {
+    if (!auth) {
+      setIsAuthLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAuthLoading(false);
@@ -137,7 +176,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [fetchProjects]);
 
   const createProject = useCallback(async (name: string) => {
-    if (!user) return;
+    if (!user || !db) return;
     try {
       const newProjectRef = await addDoc(collection(db, `users/${user.uid}/projects`), {
         name,
@@ -154,8 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [user, addNotification]);
 
   const deleteProject = useCallback(async (id: string) => {
-    if (!user) return;
-    // Optimistic UI update
+    if (!user || !db || !storage) return;
     const originalProjects = projects;
     setProjects(prev => prev.filter(p => p.id !== id));
     if (activeProjectId === id) {
@@ -163,7 +201,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setActiveProjectId(remainingProjects.length > 0 ? remainingProjects[0].id : null);
     }
     try {
-      // First, delete all images in subcollection from Firebase Storage
       const imagesQuery = query(collection(db, `users/${user.uid}/projects/${id}/images`));
       const imagesSnapshot = await getDocs(imagesQuery);
       for (const imgDoc of imagesSnapshot.docs) {
@@ -177,46 +214,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error deleting project:", error);
       addNotification({ title: 'Error', description: 'Could not delete project.', variant: 'destructive' });
-      setProjects(originalProjects); // Revert on error
+      setProjects(originalProjects);
     }
   }, [user, projects, activeProjectId, addNotification]);
 
   const addImageToActiveProject = useCallback(async (image: Omit<GeneratedImage, 'id' | 'createdAt' | 'src'> & { src: string }) => {
-      if (!user) {
-          addNotification({ title: "Not Logged In", description: "You must be logged in to save images.", variant: "destructive" });
+      if (!user || !db || !storage) {
+          addNotification({ title: "Save Error", description: "Firebase is not available.", variant: "destructive" });
           return;
       }
-      let targetProjectId = activeProjectId;
-      if (!targetProjectId) {
-          if (projects.length > 0) {
-              targetProjectId = projects[0].id;
-              setActiveProjectId(targetProjectId);
-          } else {
-              await createProject('My First Project');
-              // This is tricky because createProject is async and sets state.
-              // A better way would be to get the new project ID from createProject's return.
-              // For now, let's just re-fetch projects which isn't ideal but will work.
-              await fetchProjects(user.uid);
-              // This part is still problematic. Refetching and then getting the first project might work.
-              // A more robust solution would be needed in a real app.
-              return; 
-          }
-      }
-      if (!targetProjectId) {
-         addNotification({ title: "Save Error", description: "Could not find a project to save the image to.", variant: "destructive" });
+      if (!activeProjectId) {
+           addNotification({ title: "No Active Project", description: "Please create or select a project before saving images.", variant: "destructive" });
          return;
       }
       
+      const targetProjectId = activeProjectId;
       const imageId = new Date().getTime().toString();
       const storagePath = `users/${user.uid}/projects/${targetProjectId}/${imageId}`;
       const storageRef = ref(storage, storagePath);
 
       try {
-          // Upload the image data URI to Firebase Storage
           const snapshot = await uploadString(storageRef, image.src, 'data_url');
           const downloadURL = await getDownloadURL(snapshot.ref);
-
-          // Now save metadata to Firestore with the Storage URL
           const { src, ...imageData } = image;
           const newImageDoc: Omit<GeneratedImage, 'id'> = {
               ...imageData,
@@ -229,7 +248,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               createdAt: serverTimestamp()
           });
 
-          // Optimistically update UI
           const fullNewImage: GeneratedImage = { ...newImageDoc, id: docRef.id };
           setProjects(prev => prev.map(p =>
               p.id === targetProjectId ? { ...p, images: [fullNewImage, ...p.images] } : p
@@ -239,11 +257,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           console.error("Error saving image:", error);
           addNotification({ title: 'Error', description: 'Could not save the image.', variant: 'destructive' });
       }
-  }, [user, activeProjectId, projects, addNotification, createProject, fetchProjects]);
+  }, [user, activeProjectId, addNotification]);
   
   const deleteImage = useCallback(async (imageId: string, projectId: string) => {
-    if (!user) return;
-    // Optimistic UI update
+    if (!user || !db || !storage) return;
     setProjects(prevProjects =>
       prevProjects.map(p =>
         p.id === projectId
@@ -259,7 +276,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch(error) {
         console.error("Error deleting image:", error);
         addNotification({ title: 'Error', description: 'Could not delete the image. Please refresh.', variant: 'destructive' });
-        // Re-fetch to sync state on error
         fetchProjects(user.uid);
     }
   }, [user, addNotification, fetchProjects]);

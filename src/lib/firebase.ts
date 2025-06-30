@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,10 +12,30 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
+let firebaseError: string | null = null;
 
-export { app, auth, db, storage };
+try {
+  // Basic check for placeholder values or missing keys.
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('YOUR_')) {
+    throw new Error("Firebase API Key is missing or is a placeholder. Please set NEXT_PUBLIC_FIREBASE_API_KEY and other variables in your .env.local file.");
+  }
+  if (!firebaseConfig.projectId) {
+     throw new Error("Firebase Project ID is missing. Please set NEXT_PUBLIC_FIREBASE_PROJECT_ID in your .env.local file.");
+  }
+  
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+  storage = getStorage(app);
+
+} catch (error: any) {
+  console.error("FIREBASE INITIALIZATION ERROR:", error.message);
+  firebaseError = error.message;
+}
+
+
+export { app, auth, db, storage, firebaseError };
