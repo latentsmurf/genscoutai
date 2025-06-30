@@ -107,7 +107,7 @@ Generate the reimagined cinematic shot based on these precise instructions. The 
 
     try {
       const {media, text} = await ai.generate({
-        model: 'googleai/gemini-2.0-flash-exp',
+        model: 'googleai/gemini-2.0-flash-preview-image-generation',
         prompt: imageGenPrompt,
         config: {
           responseModalities: ['IMAGE', 'TEXT'],

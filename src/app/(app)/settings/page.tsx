@@ -16,7 +16,7 @@ export default function SettingsPage() {
   const { addNotification } = useAppContext();
 
   // State for all settings
-  const [model, setModel] = useState('gemini-1.5-pro');
+  const [model, setModel] = useState('gemini-2.5-pro');
   const [enableUpscaler, setEnableUpscaler] = useState(false);
   const [showAddress, setShowAddress] = useState(true);
   const [showLinks, setShowLinks] = useState(true);
@@ -64,7 +64,8 @@ export default function SettingsPage() {
                         <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Default, Quality)</SelectItem>
+                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (New, Best Quality)</SelectItem>
+                        <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro (Legacy, Quality)</SelectItem>
                         <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash (Faster, Cost-Effective)</SelectItem>
                         <SelectItem value="dall-e-3" disabled>DALL-E 3 (Conceptual, not implemented)</SelectItem>
                     </SelectContent>
