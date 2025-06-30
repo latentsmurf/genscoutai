@@ -1421,48 +1421,6 @@ const handleBudgetEstimation = () => {
               <CardHeader className="p-4 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
                    <CardTitle className="text-lg">Viewport</CardTitle>
-                   <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                disabled={currentDisplayMode === 'streetview'}
-                                title="Map Display Settings"
-                            >
-                                <Settings2 className="h-4 w-4" />
-                                <span className="sr-only">Map Display Settings</span>
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64">
-                            <div className="space-y-4">
-                                <p className="font-medium text-sm">Map Display Options</p>
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="show-coverage">Street View Coverage</Label>
-                                    <Switch id="show-coverage" checked={showCoverage} onCheckedChange={setShowCoverage} />
-                                </div>
-                                
-                                {currentDisplayMode === 'planner' && plannerViewType === 'schematic' && (
-                                    <>
-                                        <Separator />
-                                        <p className="font-medium text-sm">Schematic Layers</p>
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="show-roads">Roads</Label>
-                                            <Switch id="show-roads" checked={schematicLayers.roads} onCheckedChange={() => handleSchematicLayerToggle('roads')} />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="show-labels">Labels</Label>
-                                            <Switch id="show-labels" checked={schematicLayers.labels} onCheckedChange={() => handleSchematicLayerToggle('labels')} />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label htmlFor="show-landmarks">Landmarks</Label>
-                                            <Switch id="show-landmarks" checked={schematicLayers.landmarks} onCheckedChange={() => handleSchematicLayerToggle('landmarks')} />
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </PopoverContent>
-                    </Popover>
                 </div>
                 <div className="flex gap-2 w-full justify-end sm:w-auto">
                   <Button
@@ -1501,7 +1459,7 @@ const handleBudgetEstimation = () => {
                  <CardContent className="p-4 pt-0 border-t">
                   <div className="flex justify-between items-center pt-4 flex-wrap gap-4">
                     <Label className="text-base font-semibold">Planner Options</Label>
-                    <div className="flex gap-4 items-center flex-wrap">
+                    <div className="flex gap-2 items-center flex-wrap">
                       <div className="flex items-center space-x-2">
                         <Switch id="drawing-mode" checked={isDrawingEnabled} onCheckedChange={setIsDrawingEnabled} disabled={anyOperationInProgress} />
                         <Label htmlFor="drawing-mode" className="flex items-center gap-2"><PencilRuler/> Drawing Tools</Label>
@@ -1510,7 +1468,7 @@ const handleBudgetEstimation = () => {
                         {isCapturingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ImageDown className="mr-2 h-4 w-4" />}
                         Capture Plan
                       </Button>
-                       <div className="flex gap-2">
+                       <div className="flex gap-1">
                         <Button
                           variant={plannerViewType === 'satellite' ? 'default' : 'outline'}
                           size="sm"
@@ -1528,6 +1486,48 @@ const handleBudgetEstimation = () => {
                             <Network className="mr-2 h-4 w-4"/> Schematic
                         </Button>
                       </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Map Display Settings"
+                            >
+                                <Settings2 className="h-4 w-4" />
+                                <span className="sr-only">Map Display Settings</span>
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <p className="font-medium text-sm">Global Options</p>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="show-coverage">Street View Coverage</Label>
+                                        <Switch id="show-coverage" checked={showCoverage} onCheckedChange={setShowCoverage} />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">Toggles blue lines on all map views.</p>
+                                </div>
+                                <Separator />
+                                <div className="space-y-2">
+                                    <p className="font-medium text-sm">Schematic Layer Options</p>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="show-roads">Roads</Label>
+                                        <Switch id="show-roads" checked={schematicLayers.roads} onCheckedChange={() => handleSchematicLayerToggle('roads')} disabled={plannerViewType !== 'schematic'} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="show-labels">Labels</Label>
+                                        <Switch id="show-labels" checked={schematicLayers.labels} onCheckedChange={() => handleSchematicLayerToggle('labels')} disabled={plannerViewType !== 'schematic'} />
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="show-landmarks">Landmarks</Label>
+                                        <Switch id="show-landmarks" checked={schematicLayers.landmarks} onCheckedChange={() => handleSchematicLayerToggle('landmarks')} disabled={plannerViewType !== 'schematic'} />
+                                    </div>
+                                    {plannerViewType !== 'schematic' && <p className="text-xs text-muted-foreground">Only available in Schematic view.</p>}
+                                </div>
+                            </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                  </CardContent>
