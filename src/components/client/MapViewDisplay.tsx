@@ -42,30 +42,38 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   const [isMapInitialized, setIsMapInitialized] = useState(false);
   const drawnOverlaysRef = useRef<google.maps.MVCObject[]>([]);
 
-  const openNoteEditor = useCallback((marker: google.maps.Marker, map: google.maps.Map, isNew: boolean) => {
+  const openNoteEditor = useCallback((marker: google.maps.Marker, map: google.maps.Map, isNew: boolean, associatedShape?: google.maps.MVCObject) => {
     // Create info window content dynamically to avoid stale closures
     const infoWindow = new window.google.maps.InfoWindow();
     const content = document.createElement('div');
+    content.style.minWidth = '250px';
 
     const input = document.createElement('textarea');
     input.placeholder = "Enter note...";
     input.value = (marker.getLabel() as google.maps.MarkerLabel)?.text || '';
-    input.style.cssText = "width: 220px; height: 80px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; font-family: sans-serif;";
+    input.style.cssText = "width: 100%; height: 80px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; padding: 5px; font-family: sans-serif; box-sizing: border-box;";
     
     const colorPickerContainer = document.createElement('div');
     colorPickerContainer.style.cssText = "margin-bottom: 10px; display: flex; align-items: center; gap: 5px;";
-    colorPickerContainer.innerHTML = '<strong style="margin-right: 5px;">Color:</strong>';
+    
+    const colorLabel = document.createElement('strong');
+    colorLabel.textContent = "Color:";
+    colorLabel.style.marginRight = "5px";
+    colorPickerContainer.appendChild(colorLabel);
     
     const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'pink'];
     let selectedColor = 'red'; // default color
 
     const currentIcon = marker.getIcon() as string | google.maps.Icon | null;
-    if (typeof currentIcon === 'string' && currentIcon.includes('/ms/icons/')) {
+    if(typeof currentIcon === 'string' && currentIcon.includes('/ms/icons/')) {
         const match = currentIcon.match(/([a-z]+)-dot\.png/);
         if (match && colors.includes(match[1])) {
             selectedColor = match[1];
         }
+    } else if (!currentIcon) { // It's a hidden marker for a shape
+      selectedColor = 'blue'; // Default for shape labels
     }
+
 
     const colorButtons: HTMLButtonElement[] = [];
     colors.forEach(color => {
@@ -86,6 +94,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     });
     
     const buttonContainer = document.createElement('div');
+    buttonContainer.style.display = 'flex';
+    buttonContainer.style.justifyContent = 'space-between';
+
     const saveButton = document.createElement('button');
     saveButton.setAttribute('type', 'button');
     saveButton.textContent = 'Save';
@@ -94,7 +105,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     const removeButton = document.createElement('button');
     removeButton.setAttribute('type', 'button');
     removeButton.textContent = 'Remove';
-    removeButton.style.cssText = "padding: 5px 10px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer; margin-left: 10px;";
+    removeButton.style.cssText = "padding: 5px 10px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer;";
 
     buttonContainer.appendChild(saveButton);
     buttonContainer.appendChild(removeButton);
@@ -109,9 +120,26 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         map,
     });
 
+    const removeAll = () => {
+       marker.setMap(null);
+       if (associatedShape) {
+         (associatedShape as any).setMap(null);
+       }
+       infoWindow.close();
+    }
+
     const saveAndClose = () => {
         const text = input.value.trim();
-        marker.setIcon(`http://maps.google.com/mapfiles/ms/icons/${selectedColor}-dot.png`);
+        const iconUrl = `http://maps.google.com/mapfiles/ms/icons/${selectedColor}-dot.png`;
+        
+        // If it's a shape's note marker (which was hidden), show it as a dot.
+        // Otherwise, it's a regular marker, just update its color.
+        if (!marker.getVisible()) {
+            marker.setIcon(iconUrl);
+            marker.setVisible(true);
+        } else {
+             marker.setIcon(iconUrl);
+        }
         
         if (text) {
             marker.setLabel({
@@ -127,17 +155,14 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     };
     
     saveButton.onclick = saveAndClose;
-    removeButton.onclick = () => {
-        marker.setMap(null);
-        infoWindow.close();
-    };
+    removeButton.onclick = removeAll;
     
     const closeListener = window.google.maps.event.addListener(infoWindow, 'closeclick', () => {
         if (isNew) {
             const currentLabel = marker.getLabel();
-            // If it's a new marker and was closed without saving, remove it.
+            // If it's a new item and was closed without saving, remove it.
             if (!currentLabel || !currentLabel.text) {
-               marker.setMap(null);
+               removeAll();
             }
         }
         window.google.maps.event.removeListener(closeListener);
@@ -212,9 +237,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         return;
     }
     
-    let markerCompleteListener: google.maps.MapsEventListener | null = null;
     let overlayCompleteListener: google.maps.MapsEventListener | null = null;
-
 
     if (enableDrawing) {
         if (!drawingManagerRef.current) {
@@ -227,18 +250,18 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
                         window.google.maps.drawing.OverlayType.MARKER,
                         window.google.maps.drawing.OverlayType.CIRCLE,
                         window.google.maps.drawing.OverlayType.POLYGON,
-                        window.google.maps.drawing.OverlayType.POLYLINE,
                         window.google.maps.drawing.OverlayType.RECTANGLE,
                     ],
                 },
                 markerOptions: {
-                    icon: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                    icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                    draggable: true,
                 },
                 circleOptions: {
-                    fillColor: '#ffff00',
+                    fillColor: '#3F51B5',
                     fillOpacity: 0.2,
                     strokeWeight: 2,
-                    clickable: false,
+                    clickable: true,
                     editable: true,
                     zIndex: 1,
                 },
@@ -246,7 +269,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
                     fillColor: '#3F51B5',
                     fillOpacity: 0.2,
                     strokeWeight: 2,
-                    clickable: false,
+                    clickable: true,
                     editable: true,
                     zIndex: 1,
                 },
@@ -254,31 +277,65 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
                      fillColor: '#3F51B5',
                     fillOpacity: 0.2,
                     strokeWeight: 2,
-                    clickable: false,
+                    clickable: true,
                     editable: true,
                     zIndex: 1,
                 }
             });
-            
-             // Listener for general overlays
-            overlayCompleteListener = window.google.maps.event.addListener(drawingManagerRef.current, 'overlaycomplete', (event: google.maps.drawing.OverlayCompleteEvent) => {
-                 drawnOverlaysRef.current.push(event.overlay);
-            });
-
-            // Specific listener for markers to add notes
-            markerCompleteListener = window.google.maps.event.addListener(drawingManagerRef.current, 'markercomplete', (marker: google.maps.Marker) => {
+        }
+        
+        drawingManagerRef.current.setMap(mapInstanceRef.current);
+        
+        overlayCompleteListener = window.google.maps.event.addListener(
+            drawingManagerRef.current, 'overlaycomplete', (event: google.maps.drawing.OverlayCompleteEvent) => {
+                
+                // Exit drawing mode after creating a shape.
                 if (drawingManagerRef.current) {
                     drawingManagerRef.current.setDrawingMode(null);
                 }
-                
-                openNoteEditor(marker, mapInstanceRef.current!, true);
 
-                marker.addListener('click', () => {
-                    openNoteEditor(marker, mapInstanceRef.current!, false);
-                });
-            });
-        }
-        drawingManagerRef.current.setMap(mapInstanceRef.current);
+                drawnOverlaysRef.current.push(event.overlay);
+                const overlay = event.overlay;
+
+                if (event.type === google.maps.drawing.OverlayType.MARKER) {
+                    const marker = overlay as google.maps.Marker;
+                    openNoteEditor(marker, mapInstanceRef.current!, true);
+                    marker.addListener('click', () => openNoteEditor(marker, mapInstanceRef.current!, false));
+                } else {
+                    // It's a shape (polygon, rectangle, etc.)
+                    let center;
+                    if (event.type === google.maps.drawing.OverlayType.CIRCLE) {
+                        center = (overlay as google.maps.Circle).getCenter();
+                    } else if (event.type === google.maps.drawing.OverlayType.RECTANGLE) {
+                        center = (overlay as google.maps.Rectangle).getBounds()!.getCenter();
+                    } else if (event.type === google.maps.drawing.OverlayType.POLYGON) {
+                        const path = (overlay as google.maps.Polygon).getPath();
+                        const bounds = new window.google.maps.LatLngBounds();
+                        path.forEach(latLng => bounds.extend(latLng));
+                        center = bounds.getCenter();
+                    }
+
+                    if (!center || !mapInstanceRef.current) return;
+
+                    // Create a marker to anchor the note, initially invisible
+                    const noteMarker = new window.google.maps.Marker({
+                        position: center,
+                        map: mapInstanceRef.current,
+                        visible: false, // Hide until a note is saved
+                        draggable: true,
+                    });
+                    
+                    drawnOverlaysRef.current.push(noteMarker);
+                    
+                    // Open the editor immediately for the new shape
+                    openNoteEditor(noteMarker, mapInstanceRef.current, true, overlay);
+
+                    // Re-open editor on clicking the shape OR its note marker
+                    overlay.addListener('click', () => openNoteEditor(noteMarker, mapInstanceRef.current!, false, overlay));
+                    noteMarker.addListener('click', () => openNoteEditor(noteMarker, mapInstanceRef.current!, false, overlay));
+                }
+        });
+
     } else {
         if (drawingManagerRef.current) {
             drawingManagerRef.current.setMap(null);
@@ -286,10 +343,9 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     }
     
     return () => {
-        // These listeners are attached to the drawingManager instance.
-        // It's best practice to clean them up, but since drawingManager persists, they don't cause major leaks.
-        // If enableDrawing was toggled rapidly, multiple listeners could be added.
-        // For simplicity in this context, we'll rely on the single instance of the drawingManager.
+        if (overlayCompleteListener) {
+            window.google.maps.event.removeListener(overlayCompleteListener);
+        }
     };
   }, [isMapInitialized, enableDrawing, openNoteEditor]);
 
