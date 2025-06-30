@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from "@/components/ui/separator";
 import {
@@ -30,7 +31,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages, Banknote, Calculator } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages, Banknote, Calculator, Settings2 } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
@@ -50,28 +51,6 @@ import { cn } from '@/lib/utils';
 import { useAppContext } from '@/context/AppContext';
 import html2canvas from 'html2canvas';
 import { Switch } from '@/components/ui/switch';
-
-const schematicMapStyles: google.maps.MapTypeStyle[] = [
-  { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#f0f0f0' }] },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#c9c9c9' }] },
-  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#e0e0e0' }] },
-  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
-  { featureType: 'road.local', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-  { featureType: 'transit.line', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
-  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#eeeeee' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
-];
 
 export default function GenScoutAIClient() {
   const { 
@@ -141,6 +120,15 @@ export default function GenScoutAIClient() {
   // New state for Scene Planner
   const [isDrawingEnabled, setIsDrawingEnabled] = useState<boolean>(false);
   const [isCapturingPlan, setIsCapturingPlan] = useState<boolean>(false);
+  const [schematicLayers, setSchematicLayers] = useState({
+    roads: true,
+    labels: true,
+    landmarks: false,
+  });
+
+  const handleSchematicLayerToggle = (layer: keyof typeof schematicLayers) => {
+    setSchematicLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
+  };
   
   // New state for advanced features
   const [permitInfo, setPermitInfo] = useState<FetchPermitInfoOutput | null>(null);
@@ -1479,7 +1467,7 @@ const handleBudgetEstimation = () => {
                         {isCapturingPlan ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <ImageDown className="mr-2 h-4 w-4" />}
                         Capture Plan
                       </Button>
-                      <div className="flex gap-2">
+                       <div className="flex gap-2">
                         <Button
                           variant={plannerViewType === 'satellite' ? 'default' : 'outline'}
                           size="sm"
@@ -1488,14 +1476,46 @@ const handleBudgetEstimation = () => {
                         >
                           <Layers className="mr-2 h-4 w-4"/> Satellite
                         </Button>
-                        <Button
-                          variant={plannerViewType === 'schematic' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPlannerViewType('schematic')}
-                          disabled={anyOperationInProgress}
-                        >
-                          <Network className="mr-2 h-4 w-4"/> Schematic
-                        </Button>
+                        <div className="flex rounded-md border">
+                          <Button
+                            variant={plannerViewType === 'schematic' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPlannerViewType('schematic')}
+                            disabled={anyOperationInProgress}
+                            className="rounded-r-none border-none"
+                          >
+                            <Network className="mr-2 h-4 w-4"/> Schematic
+                          </Button>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="rounded-l-none border-l h-9 w-9"
+                                disabled={plannerViewType !== 'schematic' || anyOperationInProgress}
+                              >
+                                <Settings2 className="h-4 w-4" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64">
+                              <div className="space-y-4">
+                                <p className="font-medium text-sm">Schematic Layers</p>
+                                <div className="flex items-center justify-between">
+                                  <Label htmlFor="show-roads">Roads</Label>
+                                  <Switch id="show-roads" checked={schematicLayers.roads} onCheckedChange={() => handleSchematicLayerToggle('roads')} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <Label htmlFor="show-labels">Labels</Label>
+                                  <Switch id="show-labels" checked={schematicLayers.labels} onCheckedChange={() => handleSchematicLayerToggle('labels')} />
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <Label htmlFor="show-landmarks">Landmarks</Label>
+                                  <Switch id="show-landmarks" checked={schematicLayers.landmarks} onCheckedChange={() => handleSchematicLayerToggle('landmarks')} />
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1670,7 +1690,7 @@ const handleBudgetEstimation = () => {
                 markerPos={markerPosition}
                 onMapClick={handleMapClick}
                 mapTypeId={plannerViewType === 'satellite' ? 'satellite' : 'roadmap'}
-                customStyles={plannerViewType === 'schematic' ? schematicMapStyles : undefined}
+                schematicLayerOptions={plannerViewType === 'schematic' ? schematicLayers : undefined}
                 enableTilt={plannerViewType === 'satellite'}
                 enableDrawing={isDrawingEnabled}
                 vendorMarkers={localVendors}

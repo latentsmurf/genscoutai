@@ -15,10 +15,45 @@ interface MapViewDisplayProps {
   mapRef: React.RefObject<HTMLDivElement>;
   mapTypeId?: google.maps.MapTypeId | string;
   customStyles?: google.maps.MapTypeStyle[];
+  schematicLayerOptions?: {
+    roads: boolean;
+    labels: boolean;
+    landmarks: boolean;
+  };
   enableTilt?: boolean;
   enableDrawing?: boolean;
   vendorMarkers?: Vendor[];
 }
+
+const getSchematicStyles = (layers: MapViewDisplayProps['schematicLayerOptions']): google.maps.MapTypeStyle[] => {
+    if (!layers) return [];
+    return [
+      // Base styles that are always on for the schematic view
+      { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#c9c9c9' }] },
+      { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#9e9e9e' }] },
+      { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
+      { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#c9c9c9' }] },
+      { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#e5e5e5' }] },
+      { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+
+      // Roads base styling (color) - visibility is toggled below
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+      { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#e0e0e0' }] },
+      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+      
+      // Labels base styling (color) - visibility is toggled below
+      { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }, // Icons are always off for a cleaner look
+      { elementType: 'labels.text.fill', stylers: [{ color: '#616161' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#f0f0f0' }] },
+
+      // --- DYNAMIC VISIBILITY TOGGLES ---
+      { featureType: 'road', stylers: [{ visibility: layers.roads ? 'simplified' : 'off' }] },
+      { elementType: 'labels.text', stylers: [{ visibility: layers.labels ? 'on' : 'off' }] },
+      { featureType: 'poi', stylers: [{ visibility: layers.landmarks ? 'on' : 'off' }] },
+    ];
+};
+
 
 const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   apiKey,
@@ -30,6 +65,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   mapRef,
   mapTypeId = 'roadmap',
   customStyles,
+  schematicLayerOptions,
   enableTilt = false,
   enableDrawing = false,
   vendorMarkers = [],
@@ -169,6 +205,14 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     });
   }, []);
 
+  const effectiveStyles = React.useMemo(() => {
+    if (schematicLayerOptions) {
+      return getSchematicStyles(schematicLayerOptions);
+    }
+    return customStyles;
+  }, [schematicLayerOptions, customStyles]);
+
+
   useEffect(() => {
     if (!apiKey && mapRef.current) {
       mapRef.current.innerHTML = '<p class="text-center p-4 text-destructive">Google Maps API Key is missing. Map cannot be displayed.</p>';
@@ -185,7 +229,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
             center: center,
             zoom: zoom,
             mapTypeId: mapTypeId,
-            styles: customStyles,
+            styles: effectiveStyles,
             mapTypeControl: false,
             streetViewControl: false, // Important: disable default pegman
             fullscreenControl: false,
@@ -212,7 +256,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         }
       } else {
         mapInstanceRef.current.setMapTypeId(mapTypeId);
-        mapInstanceRef.current.setOptions({ styles: customStyles, gestureHandling: 'greedy' });
+        mapInstanceRef.current.setOptions({ styles: effectiveStyles, gestureHandling: 'greedy' });
         mapInstanceRef.current.setTilt(enableTilt ? 45 : 0);
 
         if (!coverageLayerRef.current && mapInstanceRef.current) {
@@ -229,7 +273,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
         if (coverageLayerRef.current) coverageLayerRef.current.setMap(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, isApiLoaded, mapTypeId, JSON.stringify(customStyles), enableTilt]);
+  }, [apiKey, isApiLoaded, mapTypeId, effectiveStyles, enableTilt]);
   
   // Effect to manage the drawing manager
   useEffect(() => {
