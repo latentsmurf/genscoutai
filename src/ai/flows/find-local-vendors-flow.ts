@@ -20,7 +20,7 @@ const VendorSchema = z.object({
   rating: z.number().min(1).max(5).optional().describe('A user rating, from 1 to 5.'),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).describe('The geographic coordinates of the vendor.'),
 });
-export type Vendor = z.infer<typeof VendorSchema>;
+type Vendor = z.infer<typeof VendorSchema>;
 
 const FindLocalVendorsInputSchema = z.object({
   category: z.enum(['Camera & Grip', 'Catering', 'RV & Vehicle Rental', 'Local Crew']),
@@ -77,7 +77,7 @@ const findLocalVendorsFlow = ai.defineFlow(
         model: 'googleai/gemini-1.5-flash-latest', // Use a faster model as this is a simple tool call
     });
 
-    const vendors = toolOutputs[0]?.output;
+    const vendors = toolOutputs?.[0]?.output;
     if (!vendors) {
         return { vendors: [] };
     }

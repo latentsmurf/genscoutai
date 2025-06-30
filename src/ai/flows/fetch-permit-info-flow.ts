@@ -100,7 +100,7 @@ const fetchPermitInfoFlow = ai.defineFlow(
       tools: [searchFilmPermitInfo],
     });
 
-    const permitInfo = toolOutputs[0]?.output;
+    const permitInfo = toolOutputs?.[0]?.output;
     if (!permitInfo) {
       throw new Error("Could not retrieve permit information using the available tool.");
     }
