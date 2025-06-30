@@ -10,7 +10,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Pont de Bir-Hakeim, 75015 Paris, France',
     coordinates: { lat: 48.8555, lng: 2.2876 },
     year: 2010,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Pont+de+Bir-Hakeim',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '2',
@@ -20,7 +20,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '433 W Van Buren St, Chicago, IL 60607, USA',
     coordinates: { lat: 41.8764, lng: -87.6393 },
     year: 2008,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Old+Chicago+Post',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '3',
@@ -30,7 +30,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Alnwick NE66 1NQ, United Kingdom',
     coordinates: { lat: 55.4156, lng: -1.7060 },
     year: 2001,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Alnwick+Castle',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '4',
@@ -40,7 +40,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Lincoln Memorial Cir NW, Washington, DC 20002, USA',
     coordinates: { lat: 38.8893, lng: -77.0499 },
     year: 1994,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Lincoln+Memorial+Pool',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '5',
@@ -50,7 +50,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'W 167th St, Bronx, NY 10452, USA',
     coordinates: { lat: 40.8360, lng: -73.9220 },
     year: 2019,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Joker+Stairs',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '6',
@@ -60,7 +60,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Mt Hollywood Dr, Los Angeles, CA 90027, USA',
     coordinates: { lat: 34.1240, lng: -118.3060 },
     year: 2016,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Cathy%27s+Corner',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
    {
     id: '7',
@@ -70,7 +70,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '501 Buckland Rd, Hinuera, Matamata 3472, New Zealand',
     coordinates: { lat: -37.8723, lng: 175.6828 },
     year: 2001,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Hobbiton',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '8',
@@ -80,7 +80,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '100 Reformatory Rd, Mansfield, OH 44905, USA',
     coordinates: { lat: 40.7847, lng: -82.5027 }, // Prison
     year: 1994,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Ohio+State+Reformatory',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '9',
@@ -90,7 +90,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Budapest, Hungary (general area, heavily CGI enhanced)',
     coordinates: { lat: 47.4979, lng: 19.0402 },
     year: 2017,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Budapest+2049',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '10',
@@ -100,7 +100,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '15 Rue Lepic, 75018 Paris, France',
     coordinates: { lat: 48.8867, lng: 2.3347 },
     year: 2001,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Café+des+Deux+Moulins',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '11',
@@ -110,7 +110,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Matmata Al Qadimal, Tunisia',
     coordinates: { lat: 33.5425, lng: 9.9676 },
     year: 1977,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Hotel+Sidi+Driss',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '12',
@@ -120,7 +120,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Val d\'Orcia, Tuscany, Italy',
     coordinates: { lat: 43.0732, lng: 11.6107 },
     year: 2000,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Val+d%27Orcia',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '13',
@@ -130,7 +130,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '3-7-1-2 Nishi-Shinjuku, Shinjuku-Ku, Tokyo 163-1055, Japan',
     coordinates: { lat: 35.6850, lng: 139.6917 },
     year: 2003,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Park+Hyatt+Tokyo',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '14',
@@ -140,7 +140,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Mirabellplatz, 5020 Salzburg, Austria',
     coordinates: { lat: 47.8048, lng: 13.0400 },
     year: 1965,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Mirabell+Gardens',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '15',
@@ -150,7 +150,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'The Curragh, County Kildare, Ireland',
     coordinates: { lat: 53.1483, lng: -6.8388 },
     year: 1995,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Curragh+Plains',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '16',
@@ -160,7 +160,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Annelies-Kupper-Allee, 02826 Görlitz, Germany',
     coordinates: { lat: 51.1527, lng: 14.9881 },
     year: 2014,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Görlitzer+Warenhaus',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '17',
@@ -170,7 +170,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '2600 Benjamin Franklin Pkwy, Philadelphia, PA 19130, USA',
     coordinates: { lat: 39.9656, lng: -75.1810 },
     year: 1976,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Rocky+Steps',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '18',
@@ -180,7 +180,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Culver City, CA (Set, not a real public location)',
     coordinates: { lat: 34.0054, lng: -118.3910 }, // General Culver City
     year: 1994,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Jack+Rabbit+Slim%27s',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '19',
@@ -190,7 +190,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Dubrovnik, Croatia',
     coordinates: { lat: 42.6507, lng: 18.0944 },
     year: 2011, // Start year
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Dubrovnik',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '20',
@@ -200,7 +200,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Place Sainte-Geneviève, 75005 Paris, France',
     coordinates: { lat: 48.8461, lng: 2.3474 },
     year: 2011,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=St-Étienne-du-Mont',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '21',
@@ -210,7 +210,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Kauai, Hawaii (general area, specific falls requires tour)',
     coordinates: { lat: 22.0763, lng: -159.4410 }, // General Kauai
     year: 1993,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Manawaiopuna+Falls',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '22',
@@ -220,7 +220,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Petra, Jordan',
     coordinates: { lat: 30.3225, lng: 35.4516 },
     year: 1989,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Al-Khazneh+Petra',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '23',
@@ -230,7 +230,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '4 Charles St, Boston, MA 02116, USA',
     coordinates: { lat: 42.3543, lng: -71.0691 },
     year: 1997,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Boston+Public+Garden',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '24',
@@ -240,7 +240,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '27500 E Timberline Road, Government Camp, OR 97028, USA',
     coordinates: { lat: 45.3313, lng: -121.7111 },
     year: 1980,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Timberline+Lodge',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '25',
@@ -250,7 +250,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '175 5th Ave, New York, NY 10010, USA',
     coordinates: { lat: 40.7411, lng: -73.9897 },
     year: 2002,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Flatiron+Building',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '26',
@@ -260,7 +260,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '130 West Paces Ferry Rd NW, Atlanta, GA 30305, USA',
     coordinates: { lat: 33.8404, lng: -84.3835 },
     year: 2013,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Swan+House',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '27',
@@ -270,7 +270,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Iguazu National Park',
     coordinates: { lat: -25.6953, lng: -54.4367 },
     year: 2018,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Iguazu+Falls',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '28',
@@ -280,7 +280,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '1 Sheikh Mohammed bin Rashid Blvd, Dubai, United Arab Emirates',
     coordinates: { lat: 25.1972, lng: 55.2744 },
     year: 2011,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Burj+Khalifa',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '29',
@@ -290,7 +290,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Mírové náměstí 2, 360 01 Karlovy Vary, Czechia',
     coordinates: { lat: 50.2201, lng: 12.8833 },
     year: 2006,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Grandhotel+Pupp',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '30',
@@ -300,7 +300,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '3600 Prospect St NW, Washington, DC 20007, USA',
     coordinates: { lat: 38.905, lng: -77.0706 },
     year: 1973,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Exorcist+Steps',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '31',
@@ -310,7 +310,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '14 N Moore St, New York, NY 10013, USA',
     coordinates: { lat: 40.7194, lng: -74.0066 },
     year: 1984,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Ghostbusters+HQ',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '32',
@@ -320,7 +320,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '671 Lincoln Ave, Winnetka, IL 60093, USA',
     coordinates: { lat: 42.1093, lng: -87.7335 },
     year: 1990,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Home+Alone+House',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '33',
@@ -330,7 +330,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '727 5th Ave, New York, NY 10022, USA',
     coordinates: { lat: 40.7625, lng: -73.9738 },
     year: 1961,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Tiffany+%26+Co.',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '34',
@@ -340,7 +340,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '205 E Houston St, New York, NY 10002, USA',
     coordinates: { lat: 40.7222, lng: -73.9875 },
     year: 1989,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Katz%27s+Deli',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '35',
@@ -350,7 +350,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '20 W 34th St, New York, NY 10001, USA',
     coordinates: { lat: 40.7484, lng: -73.9857 },
     year: 1993,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Empire+State+Building',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '36',
@@ -360,7 +360,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Devils Tower, WY 82714, USA',
     coordinates: { lat: 44.5902, lng: -104.7153 },
     year: 1977,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Devils+Tower',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '37',
@@ -370,7 +370,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '89 E 42nd St, New York, NY 10017, USA',
     coordinates: { lat: 40.7527, lng: -73.9772 },
     year: 2012,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Grand+Central',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '38',
@@ -380,7 +380,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Via Roma, 10121 Torino TO, Italy',
     coordinates: { lat: 45.0703, lng: 7.6869 },
     year: 1969,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Turin+Chase',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '39',
@@ -390,7 +390,7 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: 'Glenfinnan, Lochaber, Scotland',
     coordinates: { lat: 56.8763, lng: -5.4313 },
     year: 2002,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Glenfinnan+Viaduct',
+    imageUrl: 'https://placehold.co/300x150.png',
   },
   {
     id: '40',
@@ -400,6 +400,6 @@ export const sampleFilmingLocations: FilmingLocation[] = [
     address: '100 Art Rooney Ave, Pittsburgh, PA 15212, USA',
     coordinates: { lat: 40.4468, lng: -80.0158 },
     year: 2012,
-    imageUrl: 'https://placehold.co/300x150/E8EAF6/3F51B5?text=Heinz+Field',
+    imageUrl: 'https://placehold.co/300x150.png',
   }
 ];

@@ -28,11 +28,15 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
+import { fetchPermitInfo, type FetchPermitInfoInput, type FetchPermitInfoOutput } from '@/ai/flows/fetch-permit-info-flow';
+import { findLocalVendors, type FindLocalVendorsInput, type FindLocalVendorsOutput, type Vendor } from '@/ai/flows/find-local-vendors-flow';
+import { estimateLogistics, type EstimateLogisticsInput, type EstimateLogisticsOutput } from '@/ai/flows/estimate-logistics-flow';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import StreetViewDisplay from './StreetViewDisplay';
@@ -134,7 +138,16 @@ export default function GenScoutAIClient() {
   const [isDrawingEnabled, setIsDrawingEnabled] = useState<boolean>(false);
   const [isCapturingPlan, setIsCapturingPlan] = useState<boolean>(false);
   
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan;
+  // New state for advanced features
+  const [permitInfo, setPermitInfo] = useState<FetchPermitInfoOutput | null>(null);
+  const [isLoadingPermitInfo, setIsLoadingPermitInfo] = useState<boolean>(false);
+  const [localVendors, setLocalVendors] = useState<Vendor[]>([]);
+  const [isLoadingVendors, setIsLoadingVendors] = useState<boolean>(false);
+  const [logisticsInfo, setLogisticsInfo] = useState<EstimateLogisticsOutput | null>(null);
+  const [isLoadingLogistics, setIsLoadingLogistics] = useState<boolean>(false);
+
+
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan || isLoadingPermitInfo || isLoadingVendors || isLoadingLogistics;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -154,6 +167,8 @@ export default function GenScoutAIClient() {
     { value: 'bird-s eye view', label: "Bird's-eye View (from street level)" },
   ];
   const cameraLenses = ["16mm", "24mm", "35mm", "50mm", "85mm", "135mm"];
+  const vendorCategories: FindLocalVendorsInput['category'][] = ['Camera & Grip', 'Catering', 'RV & Vehicle Rental', 'Local Crew'];
+
 
   const filteredFilmingLocations = sampleFilmingLocations.filter(loc => {
     const searchTermLower = filmingLocationSearchTerm.toLowerCase();
@@ -193,6 +208,9 @@ export default function GenScoutAIClient() {
   const fetchLocationInformation = useCallback(async (name: string, coords?: google.maps.LatLngLiteral) => {
     setIsLoadingLocationInfo(true);
     setLocationInfo(null);
+    setPermitInfo(null);
+    setLogisticsInfo(null);
+    setLocalVendors([]);
     try {
       const input: GenerateLocationInfoInput = { locationName: name };
       if (coords) {
@@ -237,6 +255,7 @@ export default function GenScoutAIClient() {
     } else {
       setCurrentPlaceId(null);
       setPlacePhotos([]);
+      setActiveSidebarTab("custom-search");
     }
   }, [fetchLocationInformation, fetchPlacePhotos]);
 
@@ -535,6 +554,78 @@ export default function GenScoutAIClient() {
         setIsCapturingPlan(false);
     }
 }, [addImageToActiveProject, addNotification, locationForStreetView]);
+
+const handleFetchPermitInfo = useCallback(async () => {
+    if (!markerPosition || !locationForStreetView) {
+        addNotification({ title: "Location Needed", description: "Please select a location on the map first.", variant: "destructive" });
+        return;
+    }
+    setIsLoadingPermitInfo(true);
+    setPermitInfo(null);
+    try {
+        const input: FetchPermitInfoInput = {
+            locationName: locationForStreetView,
+            coordinates: markerPosition,
+        };
+        const result = await fetchPermitInfo(input);
+        updateSessionCost('geminiTextGenerations');
+        setPermitInfo(result);
+        addNotification({ title: "Permit Info Fetched", description: `Found info for ${result.filmCommission.name}` });
+    } catch (error) {
+        console.error("Error fetching permit info:", error);
+        addNotification({ title: "AI Error", description: "Failed to fetch permit information.", variant: "destructive" });
+    } finally {
+        setIsLoadingPermitInfo(false);
+    }
+}, [markerPosition, locationForStreetView, addNotification, updateSessionCost]);
+
+const handleFindVendors = useCallback(async (category: FindLocalVendorsInput['category']) => {
+    if (!markerPosition) {
+        addNotification({ title: "Location Needed", description: "Please select a location to find vendors.", variant: "destructive" });
+        return;
+    }
+    setIsLoadingVendors(true);
+    setLocalVendors([]);
+    try {
+        const input: FindLocalVendorsInput = {
+            category,
+            centerCoordinates: markerPosition,
+        };
+        const result = await findLocalVendors(input);
+        updateSessionCost('geminiTextGenerations');
+        setLocalVendors(result.vendors);
+        addNotification({ title: "Vendors Found", description: `Found ${result.vendors.length} vendors for ${category}.` });
+    } catch (error) {
+        console.error("Error finding local vendors:", error);
+        addNotification({ title: "AI Error", description: "Failed to find local vendors.", variant: "destructive" });
+    } finally {
+        setIsLoadingVendors(false);
+    }
+}, [markerPosition, addNotification, updateSessionCost]);
+
+const handleEstimateLogistics = useCallback(async () => {
+    if (!markerPosition || !locationForStreetView) {
+        addNotification({ title: "Location Needed", description: "Please select a location first.", variant: "destructive" });
+        return;
+    }
+    setIsLoadingLogistics(true);
+    setLogisticsInfo(null);
+    try {
+        const input: EstimateLogisticsInput = {
+            locationName: locationForStreetView,
+            destinationCoordinates: markerPosition,
+        };
+        const result = await estimateLogistics(input);
+        updateSessionCost('geminiTextGenerations');
+        setLogisticsInfo(result);
+        addNotification({ title: "Logistics Estimated", description: "Travel and amenities info loaded." });
+    } catch (error) {
+        console.error("Error estimating logistics:", error);
+        addNotification({ title: "AI Error", description: "Failed to estimate logistics.", variant: "destructive" });
+    } finally {
+        setIsLoadingLogistics(false);
+    }
+}, [markerPosition, locationForStreetView, addNotification, updateSessionCost]);
 
 
   useEffect(() => {
@@ -954,10 +1045,11 @@ export default function GenScoutAIClient() {
               </div>
            </div>
           <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-3 m-2">
+            <TabsList className="grid w-full grid-cols-4 m-2">
                 <TabsTrigger value="custom-search"><Search className="w-4 h-4 mr-1" />Search</TabsTrigger>
                 <TabsTrigger value="famous-locations"><Star className="w-4 h-4 mr-1"/>Famous</TabsTrigger>
                 <TabsTrigger value="location-photos" disabled={!currentPlaceId}><Building className="w-4 h-4 mr-1"/>Photos</TabsTrigger>
+                <TabsTrigger value="vendors" disabled={!markerPosition}><Wrench className="w-4 h-4 mr-1"/>Vendors</TabsTrigger>
             </TabsList>
             <ScrollArea className="flex-1">
               <div className="p-4 pt-0">
@@ -980,35 +1072,113 @@ export default function GenScoutAIClient() {
 
                       <Separator />
 
-                      <div className="space-y-2">
-                          <h3 className="font-semibold flex items-center gap-2"><InfoIcon className="w-4 h-4" /> Location Intel</h3>
-                          {isLoadingLocationInfo ? (
-                              <div className="space-y-2 pt-2">
-                                  <Skeleton className="h-4 w-full" />
-                                  <Skeleton className="h-4 w-5/6" />
-                                  <Skeleton className="h-4 w-full mt-2" />
-                                  <Skeleton className="h-4 w-4/6" />
-                              </div>
-                          ) : locationInfo ? (
-                            <div className="space-y-3 text-sm text-muted-foreground">
-                              <p>{locationInfo.summary}</p>
-                              <div className="space-y-1">
-                                <p className="font-medium text-foreground flex items-center gap-2"><FileText className="w-4 h-4 text-primary"/>Permitting Info</p>
-                                <p>{locationInfo.permittingInfo}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <p className="font-medium text-foreground flex items-center gap-2"><ParkingCircle className="w-4 h-4 text-primary"/>Parking Assessment</p>
-                                <p>{locationInfo.parkingAssessment}</p>
-                              </div>
-                              <div className="space-y-1">
-                                <p className="font-medium text-foreground flex items-center gap-2"><Truck className="w-4 h-4 text-primary"/>Logistics Feasibility</p>
-                                <p>{locationInfo.logisticsFeasibility}</p>
-                              </div>
-                            </div>
-                          ) : (
-                              <p className="text-sm text-muted-foreground italic">Search for a location to generate AI-powered intel.</p>
-                          )}
-                      </div>
+                      <Accordion type="single" collapsible defaultValue="intel" className="w-full">
+                        <AccordionItem value="intel">
+                            <AccordionTrigger className="text-base">
+                                <div className="flex items-center gap-2"><InfoIcon className="w-4 h-4" /> Location Intel</div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                {isLoadingLocationInfo ? (
+                                    <div className="space-y-2 pt-2">
+                                        <Skeleton className="h-4 w-full" />
+                                        <Skeleton className="h-4 w-5/6" />
+                                        <Skeleton className="h-4 w-full mt-2" />
+                                        <Skeleton className="h-4 w-4/6" />
+                                    </div>
+                                ) : locationInfo ? (
+                                  <div className="space-y-3 text-sm text-muted-foreground">
+                                    <p>{locationInfo.summary}</p>
+                                    <div className="space-y-1">
+                                      <p className="font-medium text-foreground flex items-center gap-2"><FileText className="w-4 h-4 text-primary"/>Permitting Info</p>
+                                      <p>{locationInfo.permittingInfo}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="font-medium text-foreground flex items-center gap-2"><ParkingCircle className="w-4 h-4 text-primary"/>Parking Assessment</p>
+                                      <p>{locationInfo.parkingAssessment}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="font-medium text-foreground flex items-center gap-2"><Truck className="w-4 h-4 text-primary"/>Logistics Feasibility</p>
+                                      <p>{locationInfo.logisticsFeasibility}</p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground italic">Search for a location to generate AI-powered intel.</p>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                        <AccordionItem value="permits">
+                             <AccordionTrigger className="text-base" disabled={!markerPosition}>
+                                <div className="flex items-center gap-2"><Award className="w-4 h-4" /> Permitting & Regulations</div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <Button size="sm" onClick={handleFetchPermitInfo} disabled={anyOperationInProgress || !markerPosition}>
+                                    {isLoadingPermitInfo ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Search className="mr-2 h-4 w-4" />}
+                                    Fetch Permit Details
+                                </Button>
+                                {isLoadingPermitInfo && <Skeleton className="h-24 w-full mt-2" />}
+                                {permitInfo && (
+                                    <div className="mt-4 space-y-3 text-sm text-muted-foreground border-t pt-4">
+                                        <div>
+                                            <p className="font-medium text-foreground">{permitInfo.filmCommission.name}</p>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                                {permitInfo.filmCommission.website && <a href={permitInfo.filmCommission.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">Website <ExternalLink className="w-3 h-3"/></a>}
+                                                {permitInfo.filmCommission.phone && <a href={`tel:${permitInfo.filmCommission.phone}`} className="text-primary hover:underline flex items-center gap-1">Phone <Phone className="w-3 h-3"/></a>}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-foreground mt-2">Regulations Summary</p>
+                                            <p className="whitespace-pre-wrap">{permitInfo.regulationSummary}</p>
+                                        </div>
+                                         <div>
+                                            <p className="font-medium text-foreground mt-2">Known Fees</p>
+                                            <p>{permitInfo.knownFees}</p>
+                                        </div>
+                                        <Button variant="link" asChild className="p-0 h-auto">
+                                            <a href={permitInfo.linkToGuidelines} target="_blank" rel="noopener noreferrer">View Full Guidelines PDF <ExternalLink className="ml-1 w-3 h-3"/></a>
+                                        </Button>
+                                    </div>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                         <AccordionItem value="logistics">
+                             <AccordionTrigger className="text-base" disabled={!markerPosition}>
+                                <div className="flex items-center gap-2"><Truck className="w-4 h-4" /> Travel & Logistics</div>
+                            </AccordionTrigger>
+                            <AccordionContent>
+                                <Button size="sm" onClick={handleEstimateLogistics} disabled={anyOperationInProgress || !markerPosition}>
+                                    {isLoadingLogistics ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <TimerIcon className="mr-2 h-4 w-4" />}
+                                    Estimate Logistics
+                                </Button>
+                                {isLoadingLogistics && <Skeleton className="h-24 w-full mt-2" />}
+                                {logisticsInfo && (
+                                    <div className="mt-4 space-y-3 text-sm text-muted-foreground border-t pt-4">
+                                        <div>
+                                            <p className="font-medium text-foreground">Estimated Travel Time</p>
+                                            <p>{logisticsInfo.estimatedTravelTime}</p>
+                                        </div>
+                                         <div>
+                                            <p className="font-medium text-foreground mt-2">Suggested Load-in Spots</p>
+                                            <ul className="list-disc pl-5">
+                                                {logisticsInfo.suggestedLoadInSpots.map((spot, i) => <li key={i}>{spot}</li>)}
+                                            </ul>
+                                        </div>
+                                         <div>
+                                            <p className="font-medium text-foreground mt-2 flex items-center gap-2"><Hotel className="w-4 h-4 text-primary"/> Nearby Accommodations</p>
+                                            <ul className="list-disc pl-5">
+                                               {logisticsInfo.nearbyAmenities.accommodations.map((item, i) => <li key={i}>{item}</li>)}
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-foreground mt-2 flex items-center gap-2"><UtensilsCrossed className="w-4 h-4 text-primary"/> Nearby Food</p>
+                                            <ul className="list-disc pl-5">
+                                               {logisticsInfo.nearbyAmenities.food.map((item, i) => <li key={i}>{item}</li>)}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                            </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                   </div>
               </TabsContent>
               <TabsContent value="famous-locations" className="mt-0">
@@ -1024,7 +1194,7 @@ export default function GenScoutAIClient() {
                     <div className="space-y-2">
                       {filteredFilmingLocations.map(loc => (
                           <button key={loc.id} onClick={() => handleFilmingLocationSelect(loc)} className="w-full text-left p-2 rounded-lg hover:bg-muted transition-colors flex items-center gap-3">
-                              <Image src={loc.imageUrl} alt={loc.locationName} width={80} height={40} className="rounded object-cover aspect-video" />
+                              <Image src={loc.imageUrl} alt={loc.locationName} width={80} height={40} className="rounded object-cover aspect-video" data-ai-hint="movie scene" />
                               <div className="flex-1">
                                   <p className="font-semibold text-sm leading-tight">{loc.movieTitle}</p>
                                   <p className="text-xs text-muted-foreground leading-tight">{loc.locationName}</p>
@@ -1065,13 +1235,53 @@ export default function GenScoutAIClient() {
                     </div>
                  )}
               </TabsContent>
+              <TabsContent value="vendors" className="mt-0 space-y-4">
+                <div>
+                    <p className="text-sm font-medium mb-2">Find local services:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                        {vendorCategories.map(category => (
+                            <Button key={category} variant="outline" size="sm" onClick={() => handleFindVendors(category)} disabled={anyOperationInProgress}>
+                                {category}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+                {isLoadingVendors ? (
+                    <div className="space-y-2">
+                        {[...Array(3)].map((_,i) => <Skeleton key={i} className="h-16 w-full" />)}
+                    </div>
+                ) : localVendors.length > 0 ? (
+                    <div className="space-y-2">
+                        {localVendors.map((vendor, index) => (
+                            <Card key={index} className="text-xs">
+                                <CardHeader className="p-3">
+                                    <CardTitle className="text-sm flex justify-between items-start">
+                                        <span>{vendor.name}</span>
+                                        {vendor.rating && <Badge variant="secondary" className="flex items-center gap-1 shrink-0"><Star className="w-3 h-3 text-amber-500"/>{vendor.rating.toFixed(1)}</Badge>}
+                                    </CardTitle>
+                                    <CardDescription>{vendor.address}</CardDescription>
+                                </CardHeader>
+                                <CardFooter className="p-3 pt-0 flex justify-between">
+                                    <div className="flex gap-2">
+                                        {vendor.website && <Button variant="outline" size="sm" asChild><a href={vendor.website} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1 h-3 w-3"/> Website</a></Button>}
+                                        {vendor.phone && <Button variant="outline" size="sm" asChild><a href={`tel:${vendor.phone}`}><Phone className="mr-1 h-3 w-3"/> Call</a></Button>}
+                                    </div>
+                                    <Button variant="ghost" size="sm" onClick={() => addNotification({title: "Bookmark Added", description: `${vendor.name} saved to project (conceptual).`})}><Bookmark className="mr-1 h-3 w-3"/> Bookmark</Button>
+                                </CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground italic pt-2">Select a category to find nearby vendors.</p>
+                )}
+              </TabsContent>
               </div>
             </ScrollArea>
           </Tabs>
         </Card>
 
         {/* RIGHT DISPLAY PANEL */}
-        <div className="flex-1 flex flex-col gap-4 relative p-4">
+        <div className="flex-1 flex flex-col relative">
           {currentDisplayMode === 'streetview' && (
               <Button
                 variant="outline"
@@ -1085,7 +1295,7 @@ export default function GenScoutAIClient() {
           )}
 
           {!isUiHidden && (
-            <Card>
+            <Card className="m-4 mb-0">
               <CardHeader className="p-4 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
                    <CardTitle className="text-lg">Viewport</CardTitle>
@@ -1162,7 +1372,7 @@ export default function GenScoutAIClient() {
           )}
 
           {!isUiHidden && currentDisplayMode === 'streetview' && (
-            <Card>
+            <Card className="m-4 mb-0">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-lg">Shot Configuration</CardTitle>
               </CardHeader>
@@ -1282,7 +1492,7 @@ export default function GenScoutAIClient() {
 
           <div
             className={cn(
-              "relative flex-1",
+              "relative flex-1 m-4",
               isUiHidden && currentDisplayMode === 'streetview'
                 ? "fixed inset-0 z-0 w-screen h-screen !m-0 rounded-none"
                 : "min-h-[300px] sm:min-h-[400px] md:min-h-0"
@@ -1305,6 +1515,7 @@ export default function GenScoutAIClient() {
                 markerPos={markerPosition}
                 onMapClick={handleMapClick}
                 mapTypeId="roadmap"
+                vendorMarkers={localVendors}
               />
             )}
             {googleMapsApiLoaded && currentDisplayMode === 'streetview' && (
@@ -1329,6 +1540,7 @@ export default function GenScoutAIClient() {
                 customStyles={plannerViewType === 'schematic' ? schematicMapStyles : undefined}
                 enableTilt={plannerViewType === 'satellite'}
                 enableDrawing={isDrawingEnabled}
+                vendorMarkers={localVendors}
               />
             )}
           </div>
@@ -1410,6 +1622,13 @@ export default function GenScoutAIClient() {
                     )}
 
                     <div className="mt-4 space-y-4 pt-4 border-t">
+                        <div className="flex justify-start">
+                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
+                                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                Regenerate with new parameters
+                            </Button>
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
@@ -1487,21 +1706,14 @@ export default function GenScoutAIClient() {
                             </div>
                         </div>
 
-                        <div className="pt-2">
-                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
-                                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                                Regenerate
-                            </Button>
-                        </div>
-
                         <div className="space-y-2 pt-4 border-t">
                             <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
                             <MessageSquarePlus className="w-4 h-4" />
-                            Text Modification (Gemini)
+                            Text Modification
                             </Label>
                             <Textarea
                             id="modification-prompt"
-                            placeholder="e.g., make it snowy, add dramatic clouds (uses original scene as base)"
+                            placeholder="e.g., make it snowy, add dramatic clouds"
                             value={modificationPrompt}
                             onChange={(e) => setModificationPrompt(e.target.value)}
                             className="text-sm"

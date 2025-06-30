@@ -3,6 +3,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { MapPin } from 'lucide-react';
+import type { Vendor } from '@/ai/flows/find-local-vendors-flow';
 
 interface MapViewDisplayProps {
   apiKey: string | null;
@@ -16,6 +17,7 @@ interface MapViewDisplayProps {
   customStyles?: google.maps.MapTypeStyle[];
   enableTilt?: boolean;
   enableDrawing?: boolean;
+  vendorMarkers?: Vendor[];
 }
 
 const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
@@ -30,11 +32,13 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   customStyles,
   enableTilt = false,
   enableDrawing = false,
+  vendorMarkers = [],
 }) => {
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerInstanceRef = useRef<google.maps.Marker | null>(null);
   const coverageLayerRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
   const drawingManagerRef = useRef<google.maps.drawing.DrawingManager | null>(null);
+  const vendorMarkerInstancesRef = useRef<(google.maps.Marker | null)[]>([]);
   const [isMapInitialized, setIsMapInitialized] = useState(false);
 
   useEffect(() => {
@@ -157,6 +161,42 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     }
   }, [isMapInitialized, enableDrawing]);
 
+  // Effect to manage vendor markers
+  useEffect(() => {
+    if (!isMapInitialized || !window.google?.maps?.Marker) {
+      return;
+    }
+
+    // Clear existing vendor markers
+    vendorMarkerInstancesRef.current.forEach(marker => marker?.setMap(null));
+    vendorMarkerInstancesRef.current = [];
+
+    if (vendorMarkers.length > 0) {
+      const newMarkers = vendorMarkers.map(vendor => {
+        const marker = new window.google.maps.Marker({
+          position: vendor.coordinates,
+          map: mapInstanceRef.current,
+          title: `${vendor.name} (${vendor.category})`,
+          icon: {
+            url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+          }
+        });
+
+        // Optional: Add info window on click
+        const infoWindow = new window.google.maps.InfoWindow({
+          content: `<div><strong>${vendor.name}</strong><br/>${vendor.address}</div>`
+        });
+        marker.addListener('click', () => {
+          infoWindow.open(mapInstanceRef.current!, marker);
+        });
+
+        return marker;
+      });
+      vendorMarkerInstancesRef.current = newMarkers;
+    }
+
+  }, [vendorMarkers, isMapInitialized]);
+
 
   useEffect(() => {
     if (mapInstanceRef.current && isMapInitialized) { 
@@ -192,6 +232,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
       if (drawingManagerRef.current) {
         drawingManagerRef.current.setMap(null);
       }
+      vendorMarkerInstancesRef.current.forEach(marker => marker?.setMap(null));
     };
   }, []);
 
