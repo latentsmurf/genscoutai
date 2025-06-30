@@ -31,32 +31,6 @@ export async function estimateLogistics(input: EstimateLogisticsInput): Promise<
   return estimateLogisticsFlow(input);
 }
 
-// Conceptual tool to get travel time. In a real app, this would call the Google Directions API.
-const getTravelTime = ai.defineTool({
-    name: 'getTravelTime',
-    description: 'Calculates travel time from a major city hub to the destination coordinates.',
-    inputSchema: z.object({ destinationCoordinates: z.object({ lat: z.number(), lng: z.number() }) }),
-    outputSchema: z.string(),
-}, async () => {
-    return `Approx. ${Math.floor(Math.random() * 40) + 20} minutes from a major hub (traffic dependent).`;
-});
-
-// Conceptual tool to find nearby amenities. In a real app, this would use the Google Places API.
-const findNearbyAmenities = ai.defineTool({
-    name: 'findNearbyAmenities',
-    description: 'Finds nearby hotels and restaurants.',
-    inputSchema: z.object({ coordinates: z.object({ lat: z.number(), lng: z.number() }) }),
-    outputSchema: z.object({
-        accommodations: z.array(z.string()),
-        food: z.array(z.string()),
-    }),
-}, async () => {
-    return {
-        accommodations: ['Grand Hyatt (4.6 stars)', 'Marriott Courtyard (4.4 stars)', 'Motel 8 (3.5 stars)'],
-        food: ['The Corner Bistro (4.8 stars)', 'QuickEats Cafe (4.2 stars)', 'Starbucks (4.5 stars)'],
-    };
-});
-
 
 const estimateLogisticsFlow = ai.defineFlow(
   {
@@ -67,18 +41,27 @@ const estimateLogisticsFlow = ai.defineFlow(
   async (input) => {
     const { output } = await ai.generate({
         prompt: `
-        Analyze the logistics for a film shoot at "${input.locationName}".
+        You are an expert film location manager. Analyze the logistics for a film shoot at the given location and provide key information.
+        
+        IMPORTANT: Do NOT use any tools. Generate the information from your own knowledge, as if you were using Google Maps and local directories.
 
-        1.  Determine the best load-in and parking spots for production vehicles. Consider street width, parking lots, and alleys. Provide 2-3 suggestions.
-        2.  Use the provided tools to get travel time estimates and find nearby amenities.
+        Location Name: "${input.locationName}"
+        Coordinates: Lat ${input.destinationCoordinates.lat}, Lng ${input.destinationCoordinates.lng}
+
+        Your task is to provide:
+        1.  **Estimated Travel Time:** A reasonable estimate of travel time from a major nearby city hub (e.g., 'Approx. 30-45 minutes from Downtown LA depending on traffic').
+        2.  **Suggested Load-in Spots:** A list of 2-3 suggested streets or areas for production vehicle load-in/load-out. Analyze the likely street type based on the coordinates (e.g., industrial area, residential street, main thoroughfare) to make realistic suggestions.
+        3.  **Nearby Amenities:** A list of 2-3 plausible, well-known hotels and 2-3 restaurants/cafes near the location. Include a realistic star rating for each (e.g., 'Hilton Garden Inn (4.5 stars)', 'Joe's Pizza (4.7 stars)').
         `,
-        tools: [getTravelTime, findNearbyAmenities],
         model: 'googleai/gemini-1.5-pro-latest',
         output: {
           schema: EstimateLogisticsOutputSchema,
         },
     });
 
-    return output!;
+    if (!output) {
+      throw new Error("Could not estimate logistics information.");
+    }
+    return output;
   }
 );

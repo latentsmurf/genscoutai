@@ -36,57 +36,6 @@ export async function fetchPermitInfo(input: FetchPermitInfoInput): Promise<Fetc
   return fetchPermitInfoFlow(input);
 }
 
-// This is a conceptual tool. In a real application, this would use a web search API.
-const searchFilmPermitInfo = ai.defineTool(
-  {
-    name: 'searchFilmPermitInfo',
-    description: 'Searches the web for official film commission websites, permit applications, and regulations for a specific city or region.',
-    inputSchema: FetchPermitInfoInputSchema,
-    outputSchema: FetchPermitInfoOutputSchema,
-  },
-  async ({ locationName }) => {
-    // Mock data based on location name for demonstration
-    if (locationName.toLowerCase().includes('paris')) {
-      return {
-        filmCommission: {
-          name: 'Mission Cinéma - City of Paris',
-          website: 'https://www.paris.fr/pages/tourner-a-paris-2334',
-          phone: '+33 1 42 76 22 21',
-          email: 'tournages@paris.fr',
-        },
-        regulationSummary: "- Application lead time: At least 15 days for standard shoots.\n- Public liability insurance of €8M required.\n- Drone use heavily restricted, requires special authorization.",
-        knownFees: 'Application fee: €200. Daily fees vary by district and impact, from €300 to €2,500.',
-        linkToGuidelines: 'https://cdn.paris.fr/paris/2023/09/21/2b1a4b4e3f1e7d8c4d8f9b9e6c6b3e7d.pdf',
-      };
-    }
-    if (locationName.toLowerCase().includes('los angeles') || locationName.toLowerCase().includes('ca')) {
-         return {
-            filmCommission: {
-                name: 'FilmL.A., Inc.',
-                website: 'https://www.filmla.com/',
-                phone: '213-977-8600',
-                email: 'info@filmla.com',
-            },
-            regulationSummary: "- Standard permit processing time is 3 business days.\n- General liability insurance of $1M required.\n- Student projects may qualify for waivers and discounts.",
-            knownFees: 'Application fee: $835. Additional fees for monitors, police, and specific locations apply.',
-            linkToGuidelines: 'https://www.filmla.com/wp-content/uploads/2023/04/Filming-Rules-and-Regulations.pdf',
-        };
-    }
-    // Default mock data
-    return {
-      filmCommission: {
-        name: 'Regional Film & Events Office',
-        website: 'https://www.examplefilmcommission.com',
-        phone: '555-123-4567',
-        email: 'permits@examplefilmcommission.com',
-      },
-      regulationSummary: "- Typical lead time: 5-10 business days.\n- General liability insurance of $1M is usually required.\n- Neighborhood notification may be required for residential filming.",
-      knownFees: 'Application fees typically start at $500. Additional costs for police or fire personnel may apply.',
-      linkToGuidelines: 'https://www.examplefilmcommission.com/guidelines.pdf',
-    };
-  }
-);
-
 
 const fetchPermitInfoFlow = ai.defineFlow(
   {
@@ -95,15 +44,27 @@ const fetchPermitInfoFlow = ai.defineFlow(
     outputSchema: FetchPermitInfoOutputSchema,
   },
   async (input) => {
-     const {toolOutputs} = await ai.generate({
-      prompt: `Find the film permit information for ${input.locationName}.`,
-      tools: [searchFilmPermitInfo],
+    const { output } = await ai.generate({
+      prompt: `
+      You are an expert location scout researcher. Your task is to find film permit information for a specific location.
+      Based on your knowledge, provide the most likely film commission, regulations, and fees for the given location.
+      
+      IMPORTANT: Do NOT use any tools. Generate the information from your own knowledge, as if you were performing a web search. If you don't know the exact details, provide the most plausible information based on the location's jurisdiction (e.g., for a US city, mention typical insurance requirements and lead times). For websites and links, provide the real URL if known, otherwise use a plausible example.com format.
+
+      Location Name: ${input.locationName}
+      Coordinates: Lat ${input.coordinates.lat}, Lng ${input.coordinates.lng}
+
+      Generate the film permit information.
+      `,
+      model: 'googleai/gemini-1.5-pro-latest',
+      output: {
+        schema: FetchPermitInfoOutputSchema,
+      },
     });
 
-    const permitInfo = toolOutputs?.[0]?.output;
-    if (!permitInfo) {
-      throw new Error("Could not retrieve permit information using the available tool.");
+    if (!output) {
+      throw new Error("Could not retrieve permit information.");
     }
-    return permitInfo;
+    return output;
   }
 );
