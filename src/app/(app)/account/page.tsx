@@ -8,19 +8,24 @@ import { User, LogOut, Coins, Ship, Map, Rocket } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 
 export default function AccountPage() {
-  const { logout } = useAppContext();
+  const { user, addNotification } = useAppContext();
   const router = useRouter();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut(auth);
     router.push('/login');
+    addNotification({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
   const handlePurchase = (packName: string) => {
-    // This is a placeholder for Stripe integration
-    console.log(`Purchase initiated for ${packName}`);
+    addNotification({
+      title: "Purchase Conceptual",
+      description: `In a real app, clicking this would integrate with a payment provider like Stripe for ${packName}.`
+    });
   };
 
   return (
@@ -36,18 +41,18 @@ export default function AccountPage() {
       <Card>
         <CardHeader className="flex flex-row items-center gap-4">
             <Avatar className="h-16 w-16">
-                <AvatarImage src="https://placehold.co/100x100.png" alt="@scoutmaster" data-ai-hint="profile avatar" />
-                <AvatarFallback>SM</AvatarFallback>
+                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="profile avatar" />
+                <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
             <div>
-                <CardTitle>Scout Master</CardTitle>
+                <CardTitle>{user?.displayName || 'User'}</CardTitle>
                 <CardDescription>
-                    scout.master@example.com
+                    {user?.email || 'No email associated with this account.'}
                 </CardDescription>
             </div>
         </CardHeader>
         <CardContent>
-            <p className="text-sm text-muted-foreground">This is your main account page. You can manage your profile details and log out from here.</p>
+            <p className="text-sm text-muted-foreground">You can manage your profile details in your Google Account or other provider settings.</p>
             <Button variant="destructive" className="mt-4" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Log Out

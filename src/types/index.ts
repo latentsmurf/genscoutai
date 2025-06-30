@@ -55,3 +55,11 @@ export interface Vendor {
     lng: number;
   };
 }
+
+export interface MapNote {
+  id: string;
+  position: google.maps.LatLngLiteral;
+  text: string;
+  color: string;
+  shape?: 'marker' | 'polygon' | 'rectangle' | 'circle';
+}

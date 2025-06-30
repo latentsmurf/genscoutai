@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -13,12 +14,15 @@ import {
   Trash2,
   User,
   Compass,
-  LayoutGrid
+  LayoutGrid,
+  LogOut,
 } from 'lucide-react';
 
 import { useAppContext } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +44,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 export default function AppLayout({
@@ -51,7 +56,8 @@ export default function AppLayout({
   const router = useRouter();
   const { 
     isAuthenticated,
-    logout,
+    isAuthLoading,
+    user,
     sessionCosts, 
     resetSessionCosts, 
     notifications, 
@@ -59,26 +65,21 @@ export default function AppLayout({
     clearNotifications 
   } = useAppContext();
   
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    if (typeof isAuthenticated === 'boolean') {
-      if (!isAuthenticated) {
-        router.push('/login');
-      } else {
-        setIsCheckingAuth(false);
-      }
+    if (!isAuthLoading && !isAuthenticated) {
+      router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isAuthLoading, router]);
   
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut(auth);
     router.push('/login');
   };
 
-  if (isCheckingAuth) {
+  if (isAuthLoading) {
     return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
             <div className="flex items-center space-x-4">
@@ -127,7 +128,7 @@ export default function AppLayout({
                     href="/gallery"
                     className={cn(
                         "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
-                        pathname === '/gallery' ? 'bg-accent text-accent-foreground' : ''
+                        pathname.startsWith('/gallery') ? 'bg-accent text-accent-foreground' : ''
                     )}
                   >
                     <LayoutGrid className="h-5 w-5" />
@@ -182,7 +183,7 @@ export default function AppLayout({
               <Link
                 href="/gallery"
                 onClick={closeMobileMenu}
-                className={cn("flex items-center gap-4 px-2.5", pathname === '/gallery' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                className={cn("flex items-center gap-4 px-2.5", pathname.startsWith('/gallery') ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
               >
                 <LayoutGrid className="h-5 w-5" />
                 Media Gallery
@@ -277,7 +278,10 @@ export default function AppLayout({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="profile avatar" />
+                  <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
                 <span className="sr-only">Toggle user menu</span>
               </Button>
             </DropdownMenuTrigger>
@@ -291,7 +295,10 @@ export default function AppLayout({
                 <Link href="/settings">Settings</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Logout</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

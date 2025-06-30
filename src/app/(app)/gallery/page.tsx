@@ -4,7 +4,7 @@
 import { useAppContext, type Project } from '@/context/AppContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { ImageIcon, Calendar, PlusCircle, Trash2, Share2, Clipboard, ClipboardCheck, Folder } from 'lucide-react';
+import { ImageIcon, Calendar, PlusCircle, Trash2, Share2, Clipboard, ClipboardCheck, Folder, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,12 +37,15 @@ function CreateProjectDialog() {
   const { createProject } = useAppContext();
   const [name, setName] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      createProject(name.trim());
+      setIsLoading(true);
+      await createProject(name.trim());
       setName('');
+      setIsLoading(false);
       setIsOpen(false);
     }
   };
@@ -75,11 +78,15 @@ function CreateProjectDialog() {
                 className="col-span-3"
                 placeholder="e.g., Downtown Commercial Shoot"
                 required
+                disabled={isLoading}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit">Create Project</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Create Project
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -124,6 +131,14 @@ function ShareProjectDialog({ project }: { project: Project }) {
 
 function DeleteProjectDialog({ project }: { project: Project }) {
     const { deleteProject } = useAppContext();
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        setIsDeleting(true);
+        await deleteProject(project.id);
+        // The dialog will close automatically if the component unmounts.
+    }
+
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -135,12 +150,13 @@ function DeleteProjectDialog({ project }: { project: Project }) {
                 <AlertDialogHeader>
                 <AlertDialogTitle>Delete "{project.name}"?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This will permanently delete the project and all of its {project.images.length} media items. This action cannot be undone.
+                    This will permanently delete the project and all of its {project.images.length} media items from the database. This action cannot be undone.
                 </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => deleteProject(project.id)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Delete Project
                 </AlertDialogAction>
                 </AlertDialogFooter>
@@ -150,7 +166,7 @@ function DeleteProjectDialog({ project }: { project: Project }) {
 }
 
 export default function GalleryPage() {
-  const { projects } = useAppContext();
+  const { projects, isProjectsLoading } = useAppContext();
 
   return (
     <div className="flex flex-col h-full">
@@ -166,7 +182,11 @@ export default function GalleryPage() {
         </div>
       </header>
       <main className="flex-1 p-4 md:p-6 overflow-auto">
-        {projects.length === 0 ? (
+        {isProjectsLoading ? (
+            <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-16 h-16 text-primary animate-spin" />
+            </div>
+        ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground rounded-lg border-2 border-dashed">
             <Folder className="w-16 h-16 mb-4" />
             <h2 className="text-xl font-semibold">No projects yet.</h2>
@@ -184,7 +204,6 @@ export default function GalleryPage() {
                                 alt={`Preview for ${project.name}`}
                                 layout="fill"
                                 objectFit="cover"
-                                unoptimized={project.images[0].src.startsWith('http')}
                             />
                         ) : (
                             <ImageIcon className="w-12 h-12 text-muted-foreground" />
