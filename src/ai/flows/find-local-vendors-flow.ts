@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const VendorSchema = z.object({
+const VendorSchema = z.object({
   name: z.string().describe('The name of the vendor.'),
   category: z.string().describe('The category of the vendor (e.g., "Camera Rental", "Catering").'),
   address: z.string().describe('The physical address of the vendor.'),
