@@ -34,3 +34,10 @@ export interface GeneratedImage {
   };
   createdAt: Date;
 }
+
+export interface Shot {
+  shotNumber: number;
+  cameraAngle: string;
+  shotDescription: string;
+  notes?: string;
+}

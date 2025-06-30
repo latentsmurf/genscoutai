@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, Languages } from 'lucide-react';
 import { useState } from 'react';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [enableUpscaler, setEnableUpscaler] = useState(false);
   const [showAddress, setShowAddress] = useState(true);
   const [showLinks, setShowLinks] = useState(true);
+  const [language, setLanguage] = useState('en');
 
   const handleSave = () => {
     addNotification({
@@ -27,6 +28,16 @@ export default function SettingsPage() {
       description: "In a real application, your settings would be persisted.",
     });
   };
+
+  const handleLanguageChange = (lang: string) => {
+    setLanguage(lang);
+    if (lang !== 'en') {
+        addNotification({
+            title: "Language Setting (Conceptual)",
+            description: `UI translation for '${lang}' is a planned feature. It would involve a full i18n implementation.`
+        });
+    }
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -110,6 +121,33 @@ export default function SettingsPage() {
                     checked={showLinks}
                     onCheckedChange={setShowLinks}
                 />
+            </div>
+        </CardContent>
+      </Card>
+
+       <Card>
+        <CardHeader>
+          <CardTitle>Language & Locale (Conceptual)</CardTitle>
+          <CardDescription>
+            Configure translation and localization options for the UI and AI tools.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+             <div className="space-y-2">
+                <Label htmlFor="language-select" className="flex items-center gap-2"><Languages /> UI Language</Label>
+                <Select value={language} onValueChange={handleLanguageChange}>
+                    <SelectTrigger id="language-select">
+                        <SelectValue placeholder="Select a language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="en">English (Default)</SelectItem>
+                        <SelectItem value="es">Español (Spanish)</SelectItem>
+                        <SelectItem value="fr">Français (French)</SelectItem>
+                        <SelectItem value="de">Deutsch (German)</SelectItem>
+                        <SelectItem value="ja">日本語 (Japanese)</SelectItem>
+                    </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">This is a conceptual feature. Selecting a language other than English will trigger a notification.</p>
             </div>
         </CardContent>
       </Card>

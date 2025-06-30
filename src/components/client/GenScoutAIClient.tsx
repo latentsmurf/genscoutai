@@ -27,13 +27,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
+import { generateShotList, type GenerateShotListInput, type GenerateShotListOutput, type Shot } from '@/ai/flows/generate-shot-list-flow';
 import { fetchPermitInfo, type FetchPermitInfoInput, type FetchPermitInfoOutput } from '@/ai/flows/fetch-permit-info-flow';
 import { findLocalVendors, type FindLocalVendorsInput, type FindLocalVendorsOutput, type Vendor } from '@/ai/flows/find-local-vendors-flow';
 import { estimateLogistics, type EstimateLogisticsInput, type EstimateLogisticsOutput } from '@/ai/flows/estimate-logistics-flow';
@@ -109,7 +111,7 @@ export default function GenScoutAIClient() {
   const [generatedCinematicImage, setGeneratedCinematicImage] = useState<string | null>(null);
   const [isGeneratingCinematicImage, setIsGeneratingCinematicImage] = useState<boolean>(false);
   const [isGeneratedImageDialogOpen, setIsGeneratedImageDialogOpen] = useState<boolean>(false);
-  const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string} | null>(null);
+  const [snapshotOverlays, setSnapshotOverlays] = useState<{lens: string; time: string; weather: string, location: string, direction: string} | null>(null);
   const [lastBaseImageSource, setLastBaseImageSource] = useState<string | null>(null);
 
   const [currentDisplayMode, setCurrentDisplayMode] = useState<'map' | 'streetview' | 'planner'>('map');
@@ -146,8 +148,12 @@ export default function GenScoutAIClient() {
   const [logisticsInfo, setLogisticsInfo] = useState<EstimateLogisticsOutput | null>(null);
   const [isLoadingLogistics, setIsLoadingLogistics] = useState<boolean>(false);
 
+  // New state for Shot List
+  const [shotList, setShotList] = useState<Shot[] | null>(null);
+  const [isLoadingShotList, setIsLoadingShotList] = useState<boolean>(false);
 
-  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan || isLoadingPermitInfo || isLoadingVendors || isLoadingLogistics;
+
+  const anyOperationInProgress = isGeneratingCinematicImage || isGeneratingVariations || isCapturingPlan || isLoadingPermitInfo || isLoadingVendors || isLoadingLogistics || isLoadingShotList;
 
   // Refs
   const streetViewPanoramaRef = useRef<google.maps.StreetViewPanorama | null>(null);
@@ -627,6 +633,67 @@ const handleEstimateLogistics = useCallback(async () => {
     }
 }, [markerPosition, locationForStreetView, addNotification, updateSessionCost]);
 
+const handleGenerateShotList = useCallback(async () => {
+    if (!generatedCinematicImage || !snapshotOverlays) {
+      addNotification({ title: "Shot List Error", description: "Please generate a cinematic shot first.", variant: "destructive" });
+      return;
+    }
+    setIsLoadingShotList(true);
+    setShotList(null);
+    try {
+      const input: GenerateShotListInput = {
+        imageDataUri: generatedCinematicImage,
+        sceneContext: snapshotOverlays,
+      };
+      const result = await generateShotList(input);
+      updateSessionCost('geminiTextGenerations');
+      setShotList(result.shots);
+      addNotification({ title: "Shot List Generated", description: "AI has created a potential shot list for this scene." });
+    } catch (error) {
+      console.error("Error generating shot list:", error);
+      addNotification({ title: "AI Error", description: "Failed to generate shot list.", variant: "destructive" });
+    } finally {
+      setIsLoadingShotList(false);
+    }
+}, [generatedCinematicImage, snapshotOverlays, addNotification, updateSessionCost]);
+
+const handleDownloadShotList = useCallback(() => {
+    if (!shotList || shotList.length === 0) return;
+
+    let textContent = `Shot List for: ${snapshotOverlays?.location || 'Untitled Scene'}\n`;
+    textContent += "================================================\n\n";
+
+    shotList.forEach(shot => {
+        textContent += `Shot: ${shot.shotNumber}\n`;
+        textContent += `Angle: ${shot.cameraAngle}\n`;
+        textContent += `Description: ${shot.shotDescription}\n`;
+        if (shot.notes) {
+            textContent += `Notes: ${shot.notes}\n`;
+        }
+        textContent += "\n------------------------------------------------\n\n";
+    });
+
+    const blob = new Blob([textContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    link.download = `genscoutai-shot-list-${timestamp}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    addNotification({ title: "Shot List Downloaded", description: "The shot list has been saved as a .txt file."});
+
+}, [shotList, snapshotOverlays, addNotification]);
+
+const handleTranslateImageText = useCallback(() => {
+    addNotification({
+        title: "Image Translation (Conceptual)",
+        description: "This feature would use AI-powered OCR to detect and translate text within the image. It is planned for a future update."
+    });
+}, [addNotification]);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -704,6 +771,7 @@ const handleEstimateLogistics = useCallback(async () => {
     setIsGeneratingCinematicImage(true);
     setGeneratedCinematicImage(null);
     setMoodBoardImages([]);
+    setShotList(null);
 
     let finalTimeOfDayToken: string;
     let finalWeatherConditionPrompt: string;
@@ -762,6 +830,8 @@ const handleEstimateLogistics = useCallback(async () => {
             lens: options.lens,
             time: finalTimeOfDayToken,
             weather: options.weatherConditionValue !== 'none' ? options.weatherConditionValue : 'Clear',
+            location: aiInput.sceneDescription,
+            direction: aiInput.shotDirection,
         };
         setSnapshotOverlays(overlayData);
         
@@ -859,6 +929,7 @@ const handleEstimateLogistics = useCallback(async () => {
       setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
       setDialogShotDirection(shotDirection);
       setMoodBoardImages([]);
+      setShotList(null);
 
       await processSnapshotAndGenerateAI(base64data, {
         lens: selectedLens,
@@ -896,6 +967,7 @@ const handleEstimateLogistics = useCallback(async () => {
     setDialogGeneratedWeatherPrompt(generatedWeatherPrompt);
     setDialogShotDirection(shotDirection);
     setMoodBoardImages([]);
+    setShotList(null);
 
     await processSnapshotAndGenerateAI(imageUrl, {
       lens: selectedLens,
@@ -1550,13 +1622,16 @@ const handleEstimateLogistics = useCallback(async () => {
         <Dialog open={isGeneratedImageDialogOpen} onOpenChange={(open) => {
             if (anyOperationInProgress && !open) return;
             setIsGeneratedImageDialogOpen(open);
-            if (!open) setMoodBoardImages([]);
+            if (!open) {
+                setMoodBoardImages([]);
+                setShotList(null);
+            }
         }}>
-            <DialogContent className="max-w-3xl w-full p-0">
+            <DialogContent className="max-w-4xl w-full p-0">
             <DialogHeader className="p-4 border-b">
                 <DialogTitle>Generated Cinematic Shot</DialogTitle>
                 <DialogDescription>
-                AI-reimagined scene. Adjust parameters to refine or modify.
+                AI-reimagined scene. Adjust parameters, generate variations, or create a shot list.
                 </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[calc(100vh-200px)]">
@@ -1620,175 +1695,229 @@ const handleEstimateLogistics = useCallback(async () => {
                             <p className="ml-2 text-muted-foreground">No image generated yet.</p>
                         </div>
                     )}
-
-                    <div className="mt-4 space-y-4 pt-4 border-t">
-                        <div className="flex justify-start">
-                            <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
-                                <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                                Regenerate with new parameters
-                            </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
-                                    <Focus className="w-4 h-4" /> Camera Lens
-                                </Label>
-                                <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={anyOperationInProgress}>
-                                    <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
-                                        <SelectValue placeholder="Select lens" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {cameraLenses.map(lens => (
-                                        <SelectItem key={lens} value={lens}>{lens}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
-                                    <Film className="w-4 h-4" /> Shot Direction
-                                </Label>
-                                <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={anyOperationInProgress}>
-                                    <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
-                                        <SelectValue placeholder="Select shot direction" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {shotDirectionOptions.map(option => (
-                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="md:col-span-2">
-                                <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
-                                    <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
-                                    {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                                </Label>
-                                <Slider
-                                    id="dialog-time-of-day"
-                                    min={0}
-                                    max={23}
-                                    step={1}
-                                    value={[dialogTimeOfDay]}
-                                    onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
-                                    className="my-2"
-                                    disabled={anyOperationInProgress || isLoadingDialogTimePrompt}
-                                />
-                                {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
-                                <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                                    <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
-                                </div>
-                                )}
-                            </div>
-                            <div>
-                                <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
-                                    <Bot className="w-4 h-4" /> Weather
-                                    {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
-                                </Label>
-                                <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={anyOperationInProgress || isLoadingDialogWeatherPrompt}>
-                                    <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
-                                    <SelectValue placeholder="Select weather" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                    <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
-                                    <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
-                                    <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
-                                    <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
-                                    <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
-                                <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
-                                    <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
-                                </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 pt-4 border-t">
-                            <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
-                            <MessageSquarePlus className="w-4 h-4" />
-                            Text Modification
-                            </Label>
-                            <Textarea
-                            id="modification-prompt"
-                            placeholder="e.g., make it snowy, add dramatic clouds"
-                            value={modificationPrompt}
-                            onChange={(e) => setModificationPrompt(e.target.value)}
-                            className="text-sm"
-                            rows={2}
-                            disabled={anyOperationInProgress}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                            Note: Modifies the original scene with these text instructions &amp; current parameters.
-                            </p>
-                            <div className="pt-2">
-                                <Button
-                                variant="default"
-                                onClick={handleModifyAndRegenerateFromDialog}
-                                disabled={!lastBaseImageSource || anyOperationInProgress || !modificationPrompt.trim()}
-                                >
-                                <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
-                                Modify &amp; Regenerate
+                    
+                    <Tabs defaultValue="actions">
+                        <TabsList>
+                            <TabsTrigger value="actions">Actions</TabsTrigger>
+                            <TabsTrigger value="variations">Variations</TabsTrigger>
+                            <TabsTrigger value="shotlist">Shot List</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="actions" className="mt-4 space-y-4 pt-4 border-t">
+                            <div className="flex justify-start">
+                                <Button variant="outline" onClick={handleRegenerateFromDialog} disabled={!lastBaseImageSource || anyOperationInProgress}>
+                                    <RefreshCw className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && !modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                    Regenerate with new parameters
                                 </Button>
                             </div>
-                        </div>
-                    </div>
-                    
-                    {moodBoardImages.length > 0 && (
-                    <div className="mt-4 pt-4 border-t">
-                        <h4 className="text-md font-semibold mb-3">Scene Variations:</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {moodBoardImages.map((src, index) => (
-                            <div key={index} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
-                            <Image
-                                src={src}
-                                alt={`Scene Variation ${index + 1}`}
-                                fill
-                                style={{objectFit: 'cover'}}
-                                className="rounded-lg"
-                                unoptimized
-                            />
-                            </div>
-                        ))}
-                        </div>
-                    </div>
-                    )}
-                    {isGeneratingVariations && moodBoardImages.length === 0 && ( 
-                        <div className="mt-4 pt-4 border-t">
-                            <h4 className="text-md font-semibold mb-3">Generating Scene Variations...</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                {[...Array(3)].map((_, index) => (
-                                    <Skeleton key={index} className="w-full aspect-video rounded-lg" />
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="dialog-camera-lens" className="flex items-center gap-2 text-sm mb-1">
+                                        <Focus className="w-4 h-4" /> Camera Lens
+                                    </Label>
+                                    <Select value={dialogSelectedLens} onValueChange={setDialogSelectedLens} disabled={anyOperationInProgress}>
+                                        <SelectTrigger id="dialog-camera-lens" className="w-full text-sm">
+                                            <SelectValue placeholder="Select lens" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {cameraLenses.map(lens => (
+                                            <SelectItem key={lens} value={lens}>{lens}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label htmlFor="dialog-shot-direction" className="flex items-center gap-2 text-sm mb-1">
+                                        <Film className="w-4 h-4" /> Shot Direction
+                                    </Label>
+                                    <Select value={dialogShotDirection} onValueChange={setDialogShotDirection} disabled={anyOperationInProgress}>
+                                        <SelectTrigger id="dialog-shot-direction" className="w-full text-sm">
+                                            <SelectValue placeholder="Select shot direction" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {shotDirectionOptions.map(option => (
+                                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label htmlFor="dialog-time-of-day" className="flex items-center gap-2 text-sm mb-1">
+                                        <Sun className="w-4 h-4" /> Time of Day ({dialogTimeOfDay}:00)
+                                        {isLoadingDialogTimePrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                                    </Label>
+                                    <Slider
+                                        id="dialog-time-of-day"
+                                        min={0}
+                                        max={23}
+                                        step={1}
+                                        value={[dialogTimeOfDay]}
+                                        onValueChange={(value) => handleTimeOfDayChange(value[0], true)}
+                                        className="my-2"
+                                        disabled={anyOperationInProgress || isLoadingDialogTimePrompt}
+                                    />
+                                    {dialogGeneratedTimePrompt && !isLoadingDialogTimePrompt && (
+                                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                        <span className="font-semibold">Token:</span> {dialogGeneratedTimePrompt}
+                                    </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <Label htmlFor="dialog-weather-condition" className="flex items-center gap-2 text-sm mb-1">
+                                        <Bot className="w-4 h-4" /> Weather
+                                        {isLoadingDialogWeatherPrompt && <span className="text-xs text-muted-foreground italic ml-1">(AI...)</span>}
+                                    </Label>
+                                    <Select value={dialogWeatherCondition} onValueChange={(value) => handleWeatherConditionChange(value, true)} disabled={anyOperationInProgress || isLoadingDialogWeatherPrompt}>
+                                        <SelectTrigger id="dialog-weather-condition" className="w-full text-sm">
+                                        <SelectValue placeholder="Select weather" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                        <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                                        <SelectItem value="clear"><div className="flex items-center gap-2"><Sun className="w-4 h-4" />Clear</div></SelectItem>
+                                        <SelectItem value="rain"><div className="flex items-center gap-2"><CloudRain className="w-4 h-4" />Rain</div></SelectItem>
+                                        <SelectItem value="snow"><div className="flex items-center gap-2"><Snowflake className="w-4 h-4" />Snow</div></SelectItem>
+                                        <SelectItem value="fog"><div className="flex items-center gap-2"><CloudFog className="w-4 h-4" />Fog</div></SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {dialogGeneratedWeatherPrompt && !isLoadingDialogWeatherPrompt && dialogWeatherCondition !== 'none' && (
+                                    <div className="mt-1 p-1.5 bg-muted/50 rounded-md text-xs text-center">
+                                        <span className="font-semibold">Prompt:</span> {dialogGeneratedWeatherPrompt}
+                                    </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="space-y-2 pt-4 border-t">
+                                <Label htmlFor="modification-prompt" className="flex items-center gap-1.5">
+                                <MessageSquarePlus className="w-4 h-4" />
+                                Text Modification
+                                </Label>
+                                <Textarea
+                                id="modification-prompt"
+                                placeholder="e.g., make it snowy, add dramatic clouds"
+                                value={modificationPrompt}
+                                onChange={(e) => setModificationPrompt(e.target.value)}
+                                className="text-sm"
+                                rows={2}
+                                disabled={anyOperationInProgress}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                Note: Modifies the original scene with these text instructions &amp; current parameters.
+                                </p>
+                                <div className="pt-2">
+                                    <Button
+                                    variant="default"
+                                    onClick={handleModifyAndRegenerateFromDialog}
+                                    disabled={!lastBaseImageSource || anyOperationInProgress || !modificationPrompt.trim()}
+                                    >
+                                    <Sparkles className={`mr-2 h-4 w-4 ${isGeneratingCinematicImage && modificationPrompt.trim() ? 'animate-spin' : ''}`} />
+                                    Modify &amp; Regenerate
+                                    </Button>
+                                </div>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="variations" className="mt-4 pt-4 border-t">
+                             <Button variant="outline" onClick={handleGenerateSceneVariations} disabled={!lastBaseImageSource || anyOperationInProgress}>
+                                {isGeneratingVariations ? (
+                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Variations...</>
+                                ) : (
+                                    <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
+                                )}
+                            </Button>
+                            {moodBoardImages.length > 0 && (
+                            <div className="mt-4">
+                                <h4 className="text-md font-semibold mb-3">Scene Variations:</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {moodBoardImages.map((src, index) => (
+                                    <div key={index} className="relative aspect-video bg-muted rounded-lg overflow-hidden shadow-md">
+                                    <Image
+                                        src={src}
+                                        alt={`Scene Variation ${index + 1}`}
+                                        fill
+                                        style={{objectFit: 'cover'}}
+                                        className="rounded-lg"
+                                        unoptimized
+                                    />
+                                    </div>
+                                ))}
+                                </div>
+                            </div>
+                            )}
+                            {isGeneratingVariations && moodBoardImages.length === 0 && ( 
+                                <div className="mt-4">
+                                    <h4 className="text-md font-semibold mb-3">Generating Scene Variations...</h4>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        {[...Array(3)].map((_, index) => (
+                                            <Skeleton key={index} className="w-full aspect-video rounded-lg" />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </TabsContent>
+                        <TabsContent value="shotlist" className="mt-4 pt-4 border-t">
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={handleGenerateShotList} disabled={!generatedCinematicImage || anyOperationInProgress}>
+                                    {isLoadingShotList ? (
+                                         <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
+                                    ) : (
+                                        <><ListChecks className="mr-2 h-4 w-4" /> Generate AI Shot List</>
+                                    )}
+                                </Button>
+                                 <Button variant="outline" onClick={handleDownloadShotList} disabled={!shotList || shotList.length === 0 || anyOperationInProgress}>
+                                    <Download className="mr-2 h-4 w-4" /> Download .txt
+                                </Button>
+                            </div>
+                             {isLoadingShotList ? (
+                                <div className="mt-4 space-y-2">
+                                    <Skeleton className="h-24 w-full" />
+                                    <Skeleton className="h-24 w-full" />
+                                </div>
+                            ) : shotList && shotList.length > 0 ? (
+                                <Card className="mt-4">
+                                    <CardContent className="p-0">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[50px]">#</TableHead>
+                                                    <TableHead>Angle</TableHead>
+                                                    <TableHead>Description</TableHead>
+                                                    <TableHead>Notes</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {shotList.map((shot) => (
+                                                    <TableRow key={shot.shotNumber}>
+                                                        <TableCell className="font-medium">{shot.shotNumber}</TableCell>
+                                                        <TableCell>{shot.cameraAngle}</TableCell>
+                                                        <TableCell>{shot.shotDescription}</TableCell>
+                                                        <TableCell>{shot.notes || 'N/A'}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                </Card>
+                            ) : (
+                                <div className="mt-4 text-sm text-center text-muted-foreground p-4 border rounded-lg">
+                                    <p>Click "Generate AI Shot List" to create a list of potential shots based on the current image and its parameters.</p>
+                                </div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </ScrollArea>
             <DialogFooter className="p-4 border-t flex flex-col sm:flex-row sm:justify-between items-center">
                 <div className="flex gap-2 mb-2 sm:mb-0 flex-wrap justify-center sm:justify-start">
-                    <Button
-                    variant="outline"
-                    onClick={handleGenerateSceneVariations}
-                    disabled={!lastBaseImageSource || anyOperationInProgress}
-                    className="w-full sm:w-auto"
-                    >
-                    {isGeneratingVariations ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating Variations...</>
-                    ) : (
-                        <><GalleryHorizontalEnd className="mr-2 h-4 w-4" /> Generate Scene Variations (3)</>
-                    )}
+                     <Button variant="outline" onClick={handleTranslateImageText} disabled={!generatedCinematicImage || anyOperationInProgress} className="w-full sm:w-auto">
+                        <Languages className="mr-2 h-4 w-4" />
+                        Translate Text (Conceptual)
                     </Button>
                     <Button variant="outline" onClick={handleDownloadImage} disabled={!generatedCinematicImage || anyOperationInProgress} className="w-full sm:w-auto">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Image
                     </Button>
                     <Button variant="outline" onClick={handleViewIn360VR} disabled={!generatedCinematicImage || anyOperationInProgress} className="w-full sm:w-auto">
-                    <Orbit className="mr-2 h-4 w-4" />
-                    View in 360/VR
+                        <Orbit className="mr-2 h-4 w-4" />
+                        View in 360/VR
                     </Button>
                 </div>
                 <DialogClose asChild>

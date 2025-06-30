@@ -4,7 +4,7 @@
 import { useAppContext, type GeneratedImage } from '@/context/AppContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
-import { ImageIcon, Calendar, Camera, Film, MapPin, Sun, Wind, Download, Info, Trash2, PencilRuler, ArrowLeft } from 'lucide-react';
+import { ImageIcon, Calendar, Camera, Film, MapPin, Sun, Wind, Download, Info, Trash2, PencilRuler, ArrowLeft, FileText, Share2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge';
 import { useParams, useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 function DeleteImageDialog({ imageId, onDeleted }: { imageId: string, onDeleted: () => void }) {
   const { deleteImage } = useAppContext();
@@ -138,9 +139,16 @@ function GalleryImageDialog({ image }: { image: GeneratedImage }) {
 export default function ProjectGalleryPage() {
   const params = useParams();
   const projectId = params.projectId as string;
-  const { projects } = useAppContext();
+  const { projects, addNotification } = useAppContext();
   
   const project = projects.find(p => p.id === projectId);
+
+  const handleConceptualExport = () => {
+    addNotification({
+        title: "PDF Export (Conceptual)",
+        description: "In a full version, this would generate a professional PDF lookbook. This feature is planned for a future update."
+    });
+  }
 
   if (!project) {
     return (
@@ -163,15 +171,23 @@ export default function ProjectGalleryPage() {
   return (
     <div className="flex flex-col h-full">
        <header className="p-4 md:p-6 border-b">
-        <div className="flex items-center gap-4">
-            <Button asChild variant="outline" size="icon" className="h-8 w-8">
-                <Link href="/gallery"><ArrowLeft className="h-4 w-4" /></Link>
-            </Button>
-            <div>
-                <h1 className="text-2xl font-bold">{project.name}</h1>
-                <p className="text-muted-foreground">
-                A collection of all shots and plans for this project.
-                </p>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4">
+                <Button asChild variant="outline" size="icon" className="h-8 w-8">
+                    <Link href="/gallery"><ArrowLeft className="h-4 w-4" /></Link>
+                </Button>
+                <div>
+                    <h1 className="text-2xl font-bold">{project.name}</h1>
+                    <p className="text-muted-foreground">
+                    A collection of all shots and plans for this project.
+                    </p>
+                </div>
+            </div>
+            <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleConceptualExport}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    Export as PDF (Conceptual)
+                </Button>
             </div>
         </div>
       </header>
@@ -218,4 +234,3 @@ export default function ProjectGalleryPage() {
     </div>
   );
 }
-
