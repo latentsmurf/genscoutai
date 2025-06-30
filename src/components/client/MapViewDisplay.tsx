@@ -23,6 +23,7 @@ interface MapViewDisplayProps {
   enableTilt?: boolean;
   enableDrawing?: boolean;
   vendorMarkers?: Vendor[];
+  showStreetViewCoverage?: boolean;
 }
 
 const getSchematicStyles = (layers: MapViewDisplayProps['schematicLayerOptions']): google.maps.MapTypeStyle[] => {
@@ -69,6 +70,7 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
   enableTilt = false,
   enableDrawing = false,
   vendorMarkers = [],
+  showStreetViewCoverage = true,
 }) => {
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
   const markerInstanceRef = useRef<google.maps.Marker | null>(null);
@@ -453,6 +455,14 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
     }
   }, [markerPos, isMapInitialized]); 
 
+  // Effect to toggle Street View coverage layer
+  useEffect(() => {
+    if (coverageLayerRef.current && mapInstanceRef.current) {
+      coverageLayerRef.current.setMap(showStreetViewCoverage ? mapInstanceRef.current : null);
+    }
+  }, [showStreetViewCoverage, isMapInitialized]);
+
+
   useEffect(() => {
     return () => {
       if (coverageLayerRef.current) {
@@ -497,3 +507,5 @@ const MapViewDisplay: React.FC<MapViewDisplayProps> = ({
 };
 
 export default MapViewDisplay;
+
+    
