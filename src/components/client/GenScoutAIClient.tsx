@@ -30,14 +30,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, Switch, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages, Banknote, Calculator } from 'lucide-react';
+import { Camera, Search, Sun, CloudRain, CloudFog, Snowflake, Bot, Focus, ImageIcon, Film, Download, Sparkles, MapIcon, EyeIcon, RefreshCw, DatabaseIcon, Orbit, InfoIcon, Eye, EyeOff, FileText, ParkingCircle, Truck, MessageSquarePlus, LayoutDashboard, Layers, Network, DollarSign, TimerIcon, RotateCcw, GalleryHorizontalEnd, Loader2, Compass, Building, Star, PencilRuler, ImageDown, FolderPlus, Award, Wrench, UtensilsCrossed, Hotel, Bookmark, ExternalLink, Phone, ListChecks, Languages, Banknote, Calculator } from 'lucide-react';
 import { generateTimeOfDayPrompt, type GenerateTimeOfDayPromptInput } from '@/ai/flows/generate-time-of-day-prompt';
 import { generateWeatherConditionPrompt, type GenerateWeatherConditionInput } from '@/ai/flows/generate-weather-condition-prompt';
 import { generateCinematicShot, type GenerateCinematicShotInput } from '@/ai/flows/generate-cinematic-shot-flow';
 import { generateLocationInfo, type GenerateLocationInfoInput, type GenerateLocationInfoOutput } from '@/ai/flows/generate-location-info-flow';
 import { generateShotList, type GenerateShotListInput, type GenerateShotListOutput, type Shot } from '@/ai/flows/generate-shot-list-flow';
 import { fetchPermitInfo, type FetchPermitInfoInput, type FetchPermitInfoOutput } from '@/ai/flows/fetch-permit-info-flow';
-import { findLocalVendors, type FindLocalVendorsInput, type FindLocalVendorsOutput, type Vendor } from '@/ai/flows/find-local-vendors-flow';
+import { findLocalVendors, type FindLocalVendorsInput, type FindLocalVendorsOutput } from '@/ai/flows/find-local-vendors-flow';
+import type { Vendor } from '@/types';
 import { estimateLogistics, type EstimateLogisticsInput, type EstimateLogisticsOutput } from '@/ai/flows/estimate-logistics-flow';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,6 +49,7 @@ import { sampleFilmingLocations } from '@/data/filming-locations';
 import { cn } from '@/lib/utils';
 import { useAppContext } from '@/context/AppContext';
 import html2canvas from 'html2canvas';
+import { Switch } from '@/components/ui/switch';
 
 const schematicMapStyles: google.maps.MapTypeStyle[] = [
   { elementType: 'geometry', stylers: [{ color: '#f0f0f0' }] },
@@ -1987,3 +1989,5 @@ const handleBudgetEstimation = () => {
       </div>
   );
 }
+
+    
