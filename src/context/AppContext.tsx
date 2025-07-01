@@ -50,6 +50,8 @@ interface AppContextType {
   isAuthenticated: boolean;
   user: User | null;
   isAuthLoading: boolean;
+  isGuestMode: boolean;
+  setIsGuestMode: (isGuest: boolean) => void;
   projects: Project[];
   isProjectsLoading: boolean;
   activeProjectId: string | null;
@@ -72,6 +74,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isProjectsLoading, setIsProjectsLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -105,7 +108,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchProjects = useCallback(async (uid: string) => {
-    if (!db) return;
+    if (!db || isGuestMode) return;
     setIsProjectsLoading(true);
     try {
       const q = query(collection(db, `users/${uid}/projects`), orderBy('createdAt', 'desc'));
@@ -135,7 +138,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsProjectsLoading(false);
     }
-  }, [addNotification, activeProjectId]);
+  }, [addNotification, activeProjectId, isGuestMode]);
 
   useEffect(() => {
     if (!auth) {
@@ -146,6 +149,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       setIsAuthLoading(false);
       if (currentUser) {
+        setIsGuestMode(false);
         fetchProjects(currentUser.uid);
       } else {
         setProjects([]);
@@ -157,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [fetchProjects]);
 
   const createProject = useCallback(async (name: string) => {
-    if (!user || !db) return;
+    if (!user || !db || isGuestMode) return;
     try {
       const newProjectRef = await addDoc(collection(db, `users/${user.uid}/projects`), {
         name,
@@ -171,10 +175,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error("Error creating project:", error);
       addNotification({ title: 'Error', description: 'Could not create project.', variant: 'destructive' });
     }
-  }, [user, addNotification]);
+  }, [user, isGuestMode, addNotification]);
 
   const deleteProject = useCallback(async (id: string) => {
-    if (!user || !db || !storage) return;
+    if (!user || !db || !storage || isGuestMode) return;
     const originalProjects = projects;
     setProjects(prev => prev.filter(p => p.id !== id));
     if (activeProjectId === id) {
@@ -197,9 +201,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addNotification({ title: 'Error', description: 'Could not delete project.', variant: 'destructive' });
       setProjects(originalProjects);
     }
-  }, [user, projects, activeProjectId, addNotification]);
+  }, [user, isGuestMode, projects, activeProjectId, addNotification]);
 
   const addImageToActiveProject = useCallback(async (image: Omit<GeneratedImage, 'id' | 'createdAt' | 'src'> & { src: string }) => {
+      if (isGuestMode) {
+          addNotification({ title: "Guest Mode", description: "Image saving is disabled for guests. Please create an account." });
+          return;
+      }
       if (!user || !db || !storage) {
           addNotification({ title: "Save Error", description: "Firebase is not available.", variant: "destructive" });
           return;
@@ -238,10 +246,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           console.error("Error saving image:", error);
           addNotification({ title: 'Error', description: 'Could not save the image.', variant: 'destructive' });
       }
-  }, [user, activeProjectId, addNotification]);
+  }, [user, activeProjectId, addNotification, isGuestMode]);
   
   const deleteImage = useCallback(async (imageId: string, projectId: string) => {
-    if (!user || !db || !storage) return;
+    if (!user || !db || !storage || isGuestMode) return;
     setProjects(prevProjects =>
       prevProjects.map(p =>
         p.id === projectId
@@ -259,7 +267,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addNotification({ title: 'Error', description: 'Could not delete the image. Please refresh.', variant: 'destructive' });
         fetchProjects(user.uid);
     }
-  }, [user, addNotification, fetchProjects]);
+  }, [user, addNotification, fetchProjects, isGuestMode]);
 
   const updateSessionCost = useCallback((type: CostType) => {
     let costPerUnit = 0;
@@ -294,6 +302,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         user,
         isAuthLoading,
+        isGuestMode,
+        setIsGuestMode,
         projects,
         isProjectsLoading,
         activeProjectId,

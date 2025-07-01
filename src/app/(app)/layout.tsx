@@ -16,6 +16,8 @@ import {
   Compass,
   LayoutGrid,
   LogOut,
+  CreditCard,
+  PlusCircle,
 } from 'lucide-react';
 
 import { useAppContext } from '@/context/AppContext';
@@ -62,24 +64,27 @@ export default function AppLayout({
     resetSessionCosts, 
     notifications, 
     markAllAsRead, 
-    clearNotifications 
+    clearNotifications,
+    isGuestMode,
+    setIsGuestMode
   } = useAppContext();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
+    if (!isAuthLoading && !isAuthenticated && !isGuestMode) {
       router.push('/login');
     }
-  }, [isAuthenticated, isAuthLoading, router]);
+  }, [isAuthenticated, isAuthLoading, isGuestMode, router]);
   
   const handleLogout = async () => {
     await signOut(auth);
+    setIsGuestMode(false);
     router.push('/login');
   };
 
-  if (isAuthLoading) {
+  if (isAuthLoading && !isGuestMode) {
     return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
             <div className="flex items-center space-x-4">
@@ -137,21 +142,23 @@ export default function AppLayout({
                 </TooltipTrigger>
                 <TooltipContent side="bottom">Media Gallery</TooltipContent>
               </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    href="/settings"
-                    className={cn(
-                        "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
-                        pathname === '/settings' ? 'bg-accent text-accent-foreground' : ''
-                    )}
-                  >
-                    <Settings className="h-5 w-5" />
-                    <span className="sr-only">Settings</span>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Settings</TooltipContent>
-              </Tooltip>
+              {!isGuestMode && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                    <Link
+                        href="/settings"
+                        className={cn(
+                            "flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8",
+                            pathname === '/settings' ? 'bg-accent text-accent-foreground' : ''
+                        )}
+                    >
+                        <Settings className="h-5 w-5" />
+                        <span className="sr-only">Settings</span>
+                    </Link>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Settings</TooltipContent>
+                </Tooltip>
+              )}
             </TooltipProvider>
           </nav>
         
@@ -188,50 +195,60 @@ export default function AppLayout({
                 <LayoutGrid className="h-5 w-5" />
                 Media Gallery
               </Link>
-              <Link href="/settings" onClick={closeMobileMenu} className={cn("flex items-center gap-4 px-2.5", pathname === '/settings' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
-                <Settings className="h-5 w-5" />
-                Settings
-              </Link>
+              {!isGuestMode && (
+                <Link href="/settings" onClick={closeMobileMenu} className={cn("flex items-center gap-4 px-2.5", pathname === '/settings' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                    <Settings className="h-5 w-5" />
+                    Settings
+                </Link>
+              )}
             </nav>
           </SheetContent>
         </Sheet>
 
         <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-            <div className="ml-auto flex-shrink-0">
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
-                            <DollarSign className="mr-1 h-3 w-3" />
-                            ~${sessionCosts.totalEstimatedCost.toFixed(4)}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80" side="bottom" align="end">
-                        <div className="grid gap-4">
-                            <div className="space-y-2">
-                                <h4 className="font-medium leading-none">Session Cost Estimate</h4>
-                                <p className="text-sm text-muted-foreground">
-                                    Illustrative costs for this session only. Not actual billing.
-                                </p>
-                            </div>
-                            <div className="grid gap-2 text-sm">
-                                <div className="flex items-center justify-between"><span>Geocoding API Calls:</span><span>{sessionCosts.geocodingRequests}</span></div>
-                                <div className="flex items-center justify-between"><span>Places Details API Calls:</span><span>{sessionCosts.placesDetailsRequests}</span></div>
-                                <div className="flex items-center justify-between"><span>Street View API Calls:</span><span>{sessionCosts.streetViewSnapshots}</span></div>
-                                <div className="flex items-center justify-between"><span>Gemini Text Generations:</span><span>{sessionCosts.geminiTextGenerations}</span></div>
-                                <div className="flex items-center justify-between"><span>Gemini Image Generations:</span><span>{sessionCosts.geminiImageGenerations}</span></div>
-                            </div>
-                            <div className="flex items-center justify-between font-semibold border-t pt-2 mt-2">
-                                <p>Total Estimated Cost</p>
-                                <p>~${sessionCosts.totalEstimatedCost.toFixed(4)}</p>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={resetSessionCosts} className="mt-2">
-                                <RotateCcw className="mr-2 h-4 w-4" /> Reset Session Tracker
+            {!isGuestMode && (
+                <div className="ml-auto flex items-center gap-2">
+                    <Button asChild>
+                        <Link href="/pricing">
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            Buy Credits
+                        </Link>
+                    </Button>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+                                <DollarSign className="mr-1 h-3 w-3" />
+                                ~${sessionCosts.totalEstimatedCost.toFixed(4)}
                             </Button>
-                        </div>
-                    </PopoverContent>
-                </Popover>
-            </div>
-            <div className="flex-shrink-0">
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" side="bottom" align="end">
+                            <div className="grid gap-4">
+                                <div className="space-y-2">
+                                    <h4 className="font-medium leading-none">Session Cost Estimate</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        Illustrative costs for this session only. Not actual billing.
+                                    </p>
+                                </div>
+                                <div className="grid gap-2 text-sm">
+                                    <div className="flex items-center justify-between"><span>Geocoding API Calls:</span><span>{sessionCosts.geocodingRequests}</span></div>
+                                    <div className="flex items-center justify-between"><span>Places Details API Calls:</span><span>{sessionCosts.placesDetailsRequests}</span></div>
+                                    <div className="flex items-center justify-between"><span>Street View API Calls:</span><span>{sessionCosts.streetViewSnapshots}</span></div>
+                                    <div className="flex items-center justify-between"><span>Gemini Text Generations:</span><span>{sessionCosts.geminiTextGenerations}</span></div>
+                                    <div className="flex items-center justify-between"><span>Gemini Image Generations:</span><span>{sessionCosts.geminiImageGenerations}</span></div>
+                                </div>
+                                <div className="flex items-center justify-between font-semibold border-t pt-2 mt-2">
+                                    <p>Total Estimated Cost</p>
+                                    <p>~${sessionCosts.totalEstimatedCost.toFixed(4)}</p>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={resetSessionCosts} className="mt-2">
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Reset Session Tracker
+                                </Button>
+                            </div>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+            )}
+            <div className={`flex-shrink-0 ${isGuestMode ? 'ml-auto' : ''}`}>
                 <Popover onOpenChange={(isOpen) => { if (!isOpen) { markAllAsRead(); } }}>
                     <PopoverTrigger asChild>
                     <Button variant="ghost" size="icon" className="relative h-8 w-8">
@@ -275,32 +292,38 @@ export default function AppLayout({
                     </PopoverContent>
                 </Popover>
             </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="profile avatar" />
-                  <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <span className="sr-only">Toggle user menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/account">Account & Billing</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings">Settings</Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Logout</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            {isGuestMode ? (
+                <Button variant="outline" asChild>
+                    <Link href="/login" onClick={() => setIsGuestMode(false)}>Login or Sign Up</Link>
+                </Button>
+            ) : (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" size="icon" className="rounded-full">
+                        <Avatar className="h-8 w-8">
+                        <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="profile avatar" />
+                        <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span className="sr-only">Toggle user menu</span>
+                    </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link href="/account">Account & Billing</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href="/settings">Settings</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Logout</span>
+                    </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
         </div>
       </header>
       <main className="flex flex-1 flex-col bg-background">

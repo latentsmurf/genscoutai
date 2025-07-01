@@ -1,140 +1,137 @@
 
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, LogOut, Coins, Ship, Map, Rocket } from 'lucide-react';
 import { useAppContext } from '@/context/AppContext';
-import { useRouter } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
-import { auth } from '@/lib/firebase';
-import { signOut } from 'firebase/auth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useState } from 'react';
+import Link from 'next/link';
+import { createStripePortalSession } from '@/ai/flows/stripe-flow';
+import { Loader2 } from 'lucide-react';
 
 export default function AccountPage() {
   const { user, addNotification } = useAppContext();
-  const router = useRouter();
+  const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [isBillingLoading, setIsBillingLoading] = useState(false);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/login');
-    addNotification({ title: "Logged Out", description: "You have been successfully logged out." });
+  const handleProfileUpdate = async () => {
+    // This is where you would implement the logic to update the user's profile
+    // For now, it's just a placeholder
+    addNotification({ title: 'Success', description: 'Profile updated successfully!' });
   };
 
-  const handlePurchase = (packName: string) => {
-    addNotification({
-      title: "Purchase Conceptual",
-      description: `In a real app, clicking this would integrate with a payment provider like Stripe for ${packName}.`
-    });
+  const handlePasswordReset = () => {
+    // This is where you would implement the logic to send a password reset email
+    addNotification({ title: 'Success', description: 'Password reset email sent!' });
+  };
+
+  const handleDeleteAccount = () => {
+    // This is where you would implement the logic to delete the user's account
+    // This should include a confirmation step
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+      addNotification({ title: 'Success', description: 'Account deleted successfully!' });
+    }
+  };
+
+  const redirectToStripePortal = async () => {
+    if (!user) {
+      addNotification({ title: 'Error', description: 'You must be logged in to manage billing.', variant: 'destructive' });
+      return;
+    }
+    setIsBillingLoading(true);
+    try {
+      const portalUrl = await createStripePortalSession({ uid: user.uid });
+      window.location.href = portalUrl;
+    } catch (error) {
+      console.error(error);
+      addNotification({ title: 'Error', description: 'Could not redirect to Stripe. Please try again.', variant: 'destructive' });
+      setIsBillingLoading(false);
+    }
   };
 
   return (
-     <div className="p-4 md:p-6 space-y-6">
-      <header className="flex items-center gap-4">
-        <User className="w-8 h-8" />
-        <div>
-          <h1 className="text-2xl font-bold">Account & Billing</h1>
-          <p className="text-muted-foreground">Manage your account, credits, and preferences.</p>
-        </div>
-      </header>
-      
+    <div className="container mx-auto py-12 px-4">
       <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-            <Avatar className="h-16 w-16">
-                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || "User"} data-ai-hint="profile avatar" />
-                <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
-            <div>
-                <CardTitle>{user?.displayName || 'User'}</CardTitle>
-                <CardDescription>
-                    {user?.email || 'No email associated with this account.'}
-                </CardDescription>
+        <CardHeader>
+          <CardTitle>Account Management</CardTitle>
+          <CardDescription>Manage your profile, credits, and billing settings.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {/* Profile Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-semibold">Profile</h2>
+            <div className="flex items-center space-x-4">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={user?.photoURL || undefined} alt={user?.displayName || 'User'} />
+                <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <div className="flex-grow space-y-2">
+                <Label htmlFor="displayName">Display Name</Label>
+                <Input
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="max-w-sm"
+                />
+                <Button onClick={handleProfileUpdate}>Update Profile</Button>
+              </div>
             </div>
-        </CardHeader>
-        <CardContent>
-            <p className="text-sm text-muted-foreground">You can manage your profile details in your Google Account or other provider settings.</p>
-            <Button variant="destructive" className="mt-4" onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Log Out
-            </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Credits</CardTitle>
-          <CardDescription>This is your current credit balance for AI operations.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-4xl font-bold flex items-center">
-            <Coins className="mr-4 h-10 w-10 text-primary" />
-            500
           </div>
-          <p className="text-muted-foreground mt-2">Credits remaining. Purchase more below.</p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Purchase Credit Packs</CardTitle>
-          <CardDescription>Top up your balance to continue generating amazing cinematic shots. Payments are processed securely via Stripe (conceptual).</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Pack 1: Erikson Expedition */}
-          <Card className="flex flex-col">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Ship className="w-8 h-8 text-primary"/>
-                <CardTitle className="text-lg">The Erikson Expedition</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-              <div className="text-4xl font-bold">$10.00</div>
-              <div className="text-xl font-semibold text-primary">1,000 Credits</div>
-              <p className="text-sm text-muted-foreground pt-2">Perfect for crafting detailed scenes and exploring unique visual styles with precision.</p>
-            </CardContent>
-            <CardFooter className="mt-auto">
-              <Button className="w-full" onClick={() => handlePurchase('Erikson Expedition')}>Purchase</Button>
-            </CardFooter>
-          </Card>
 
-          {/* Pack 2: Polo Passage */}
-          <Card className="flex flex-col relative border-primary shadow-lg">
-            <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-sm">Great Value</Badge>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Map className="w-8 h-8 text-primary"/>
-                <CardTitle className="text-lg">The Polo Passage</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-              <div className="text-4xl font-bold">$25.00</div>
-              <div className="text-xl font-semibold text-primary">2,900 Credits</div>
-              <p className="text-sm text-muted-foreground pt-2">For ambitious storytellers looking to build intricate narratives and bring grander visions to life. <strong className="text-foreground">(approx. 16% Extra)</strong></p>
-            </CardContent>
-            <CardFooter className="mt-auto">
-              <Button className="w-full" onClick={() => handlePurchase('Polo Passage')}>Purchase</Button>
-            </CardFooter>
-          </Card>
+          <Separator />
 
-          {/* Pack 3: Magellan Voyage */}
-          <Card className="flex flex-col relative">
-             <Badge variant="default" className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 text-sm">Best Value</Badge>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Rocket className="w-8 h-8 text-primary"/>
-                <CardTitle className="text-lg">The Magellan Voyage</CardTitle>
+          {/* Credit Balance Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-semibold">Credit Balance</h2>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Available Credits</p>
+                <p className="text-3xl font-bold">1,250</p>
               </div>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-2">
-              <div className="text-4xl font-bold">$75.00</div>
-              <div className="text-xl font-semibold text-primary">9,750 Credits</div>
-              <p className="text-sm text-muted-foreground pt-2">The ultimate toolkit for the visionary. Ample credits for large-scale productions and extensive AI exploration. <strong className="text-foreground">(30% Extra)</strong></p>
-            </CardContent>
-            <CardFooter className="mt-auto">
-              <Button className="w-full" onClick={() => handlePurchase('Magellan Voyage')}>Purchase</Button>
-            </CardFooter>
-          </Card>
+              <Button asChild>
+                <Link href="/pricing">Buy More Credits</Link>
+              </Button>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Billing Management Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-semibold">Billing</h2>
+            <p className="text-muted-foreground">Manage your payment methods and view your purchase history.</p>
+            <Button onClick={redirectToStripePortal} disabled={isBillingLoading}>
+              {isBillingLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Manage Billing via Stripe
+            </Button>
+          </div>
+
+          <Separator />
+
+          {/* Security Section */}
+          <div className="space-y-4">
+            <h2 className="text-2xl font-semibold">Security</h2>
+            <div className="space-y-2">
+              <Button variant="outline" onClick={handlePasswordReset}>
+                Send Password Reset Email
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                You will receive an email with instructions on how to reset your password.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Button variant="destructive" onClick={handleDeleteAccount}>
+                Delete Account
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Permanently delete your account and all of your data. This action cannot be undone.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -20,7 +20,7 @@ import {
 } from 'firebase/auth';
 
 export default function LoginPage() {
-    const { isAuthenticated, addNotification } = useAppContext();
+    const { isAuthenticated, addNotification, setIsGuestMode } = useAppContext();
     const router = useRouter();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -30,7 +30,9 @@ export default function LoginPage() {
         if (isAuthenticated) {
             router.push('/scout');
         }
-    }, [isAuthenticated, router]);
+        // Ensure guest mode is reset when arriving at the login page.
+        setIsGuestMode(false);
+    }, [isAuthenticated, router, setIsGuestMode]);
 
     const handleAuthAction = async (action: 'signup' | 'login') => {
         setIsLoading(true);
@@ -42,6 +44,7 @@ export default function LoginPage() {
                 await signInWithEmailAndPassword(auth, email, password);
                 addNotification({ title: 'Logged In', description: 'Welcome back!' });
             }
+            setIsGuestMode(false);
             router.push('/scout');
         } catch (error: any) {
             console.error(`${action} error:`, error);
@@ -57,6 +60,7 @@ export default function LoginPage() {
         try {
             await signInWithPopup(auth, provider);
             addNotification({ title: 'Logged In', description: 'Welcome!' });
+            setIsGuestMode(false);
             router.push('/scout');
         } catch (error: any) {
             console.error("Google sign-in error:", error);
@@ -64,6 +68,11 @@ export default function LoginPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleGuestLogin = () => {
+      setIsGuestMode(true);
+      router.push('/scout');
     };
 
   return (
@@ -133,6 +142,11 @@ export default function LoginPage() {
             Google
           </Button>
 
+          {process.env.NODE_ENV === 'development' && (
+            <Button variant="link" className="w-full mt-4" onClick={handleGuestLogin}>
+              Continue as Guest (Dev only)
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>
