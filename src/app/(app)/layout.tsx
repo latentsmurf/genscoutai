@@ -20,6 +20,7 @@ import {
   PlusCircle,
 } from 'lucide-react';
 
+import { useAppContext } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { auth } from '@/lib/firebase';
@@ -50,29 +51,22 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function AppLayout({
   children,
-  user,
-  isGuestMode,
-  setIsGuestMode,
-  notifications,
-  markAllAsRead,
-  clearNotifications,
-  sessionCosts,
-  resetSessionCosts,
-  isAuthenticated,
 }: {
   children: React.ReactNode;
-  user: any;
-  isGuestMode: boolean;
-  setIsGuestMode: (isGuest: boolean) => void;
-  notifications: any[];
-  markAllAsRead: () => void;
-  clearNotifications: () => void;
-  sessionCosts: any;
-  resetSessionCosts: () => void;
-  isAuthenticated: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { 
+    isAuthenticated,
+    user,
+    sessionCosts, 
+    resetSessionCosts, 
+    notifications = [], // Default to empty array
+    markAllAsRead, 
+    clearNotifications,
+    isGuestMode,
+    setIsGuestMode
+  } = useAppContext();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -217,7 +211,7 @@ export default function AppLayout({
                         <PopoverTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground">
                                 <DollarSign className="mr-1 h-3 w-3" />
-                                ~${sessionCosts.totalEstimatedCost.toFixed(4)}
+                                ~${sessionCosts?.totalEstimatedCost.toFixed(4) || '0.0000'}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-80" side="bottom" align="end">
@@ -229,15 +223,15 @@ export default function AppLayout({
                                     </p>
                                 </div>
                                 <div className="grid gap-2 text-sm">
-                                    <div className="flex items-center justify-between"><span>Geocoding API Calls:</span><span>{sessionCosts.geocodingRequests}</span></div>
-                                    <div className="flex items-center justify-between"><span>Places Details API Calls:</span><span>{sessionCosts.placesDetailsRequests}</span></div>
-                                    <div className="flex items-center justify-between"><span>Street View API Calls:</span><span>{sessionCosts.streetViewSnapshots}</span></div>
-                                    <div className="flex items-center justify-between"><span>Gemini Text Generations:</span><span>{sessionCosts.geminiTextGenerations}</span></div>
-                                    <div className="flex items-center justify-between"><span>Gemini Image Generations:</span><span>{sessionCosts.geminiImageGenerations}</span></div>
+                                    <div className="flex items-center justify-between"><span>Geocoding API Calls:</span><span>{sessionCosts?.geocodingRequests || 0}</span></div>
+                                    <div className="flex items-center justify-between"><span>Places Details API Calls:</span><span>{sessionCosts?.placesDetailsRequests || 0}</span></div>
+                                    <div className="flex items-center justify-between"><span>Street View API Calls:</span><span>{sessionCosts?.streetViewSnapshots || 0}</span></div>
+                                    <div className="flex items-center justify-between"><span>Gemini Text Generations:</span><span>{sessionCosts?.geminiTextGenerations || 0}</span></div>
+                                    <div className="flex items-center justify-between"><span>Gemini Image Generations:</span><span>{sessionCosts?.geminiImageGenerations || 0}</span></div>
                                 </div>
                                 <div className="flex items-center justify-between font-semibold border-t pt-2 mt-2">
                                     <p>Total Estimated Cost</p>
-                                    <p>~${sessionCosts.totalEstimatedCost.toFixed(4)}</p>
+                                    <p>~${sessionCosts?.totalEstimatedCost.toFixed(4) || '0.0000'}</p>
                                 </div>
                                 <Button variant="outline" size="sm" onClick={resetSessionCosts} className="mt-2">
                                     <RotateCcw className="mr-2 h-4 w-4" /> Reset Session Tracker
