@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useState } from 'react';
 import Link from 'next/link';
-import { createStripePortalSession } from '@/ai/flows/stripe-flow';
+import { createStripePortalSession } from '@/app/actions'; // Changed import
 import { Loader2 } from 'lucide-react';
 
 export default function AccountPage() {
