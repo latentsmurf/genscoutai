@@ -2,17 +2,52 @@
 import { defineFlow } from 'genkit';
 import { z } from 'zod';
 import Stripe from 'stripe';
-import { auth }_ from '@/lib/firebase-admin'; // Using admin SDK for elevated privileges
+import { getFirestore } from 'firebase-admin/firestore';
+import { auth } from 'firebase-admin';
 
-// Initialize Stripe with the secret key
+// Initialize Stripe with the secret key from environment variables
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-04-10',
 });
 
-// Zod schema for the input
+// Zod schema for creating a Stripe Customer Portal session
 const createPortalSchema = z.object({
   uid: z.string(),
 });
+
+// Zod schema for creating a Stripe Checkout session
+const createCheckoutSchema = z.object({
+  uid: z.string(),
+  priceId: z.string(),
+});
+
+/**
+ * Retrieves the Stripe Customer ID for a given Firebase UID.
+ * Creates a new Stripe customer if one doesn't exist.
+ */
+async function getOrCreateStripeCustomerId(uid: string): Promise<string> {
+  const db = getFirestore();
+  const userRef = db.collection('users').doc(uid);
+  const doc = await userRef.get();
+
+  if (doc.exists && doc.data()?.stripeCustomerId) {
+    return doc.data()?.stripeCustomerId;
+  }
+
+  // User doesn't have a customer ID, so we create one.
+  const user = await auth().getUser(uid);
+  const customer = await stripe.customers.create({
+    email: user.email!,
+    name: user.displayName,
+    metadata: { firebaseUID: uid },
+  });
+
+  // Save the new customer ID to the user's document in Firestore
+  await userRef.set({ stripeCustomerId: customer.id }, { merge: true });
+
+  return customer.id;
+}
+
 
 // Genkit flow to create a Stripe Customer Portal session
 export const createStripePortalSession = defineFlow(
@@ -23,26 +58,8 @@ export const createStripePortalSession = defineFlow(
   },
   async ({ uid }) => {
     try {
-      // Get user from Firebase Auth to ensure they exist
-      const user = await auth().getUser(uid);
-      const email = user.email!;
+      const customerId = await getOrCreateStripeCustomerId(uid);
 
-      // Check if the user already has a Stripe customer ID in Firestore
-      // (This part is conceptual until we have the Firestore structure fully in place)
-      let customerId = await getStripeCustomerId(uid);
-
-      if (!customerId) {
-        // Create a new Stripe customer
-        const customer = await stripe.customers.create({
-          email,
-          metadata: { firebaseUID: uid },
-        });
-        customerId = customer.id;
-        // Save the new customer ID to Firestore
-        await saveStripeCustomerId(uid, customerId);
-      }
-
-      // Create a Billing Portal session
       const portalSession = await stripe.billingPortal.sessions.create({
         customer: customerId,
         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/account`,
@@ -56,16 +73,52 @@ export const createStripePortalSession = defineFlow(
   }
 );
 
-// Conceptual functions for Firestore interaction
-// These will be replaced with actual Firestore calls
 
-async function getStripeCustomerId(uid: string): Promise<string | null> {
-  // In a real implementation, you would fetch this from the user's document in Firestore
-  console.log(`Fetching Stripe customer ID for UID: ${uid}`);
-  return null; // Assume not found for now
-}
+// Genkit flow to create a Stripe Checkout session for one-time purchases
+export const createCheckoutSession = defineFlow(
+  {
+    name: 'createCheckoutSession',
+    inputSchema: createCheckoutSchema,
+    outputSchema: z.string().url(),
+  },
+  async ({ uid, priceId }) => {
+    try {
+      const customerId = await getOrCreateStripeCustomerId(uid);
+      
+      const successUrl = new URL(`${process.env.NEXT_PUBLIC_APP_URL}/gallery`);
+      successUrl.searchParams.append('payment_success', 'true');
+      successUrl.searchParams.append('session_id', '{CHECKOUT_SESSION_ID}');
 
-async function saveStripeCustomerId(uid: string, customerId: string): Promise<void> {
-  // In a real implementation, you would save this to the user's document in Firestore
-  console.log(`Saving Stripe customer ID ${customerId} for UID: ${uid}`);
-}
+
+      const checkoutSession = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        customer: customerId,
+        line_items: [
+          {
+            price: priceId,
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: successUrl.toString(),
+        cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+        // We can pass the UID in metadata to easily identify the user in webhooks
+        metadata: {
+          firebaseUID: uid,
+        }
+      });
+
+      if (!checkoutSession.url) {
+        throw new Error('Could not create Stripe Checkout session.');
+      }
+
+      return checkoutSession.url;
+    } catch (error) {
+      console.error('Error creating Stripe checkout session:', error);
+      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+          throw new Error(`The Price ID "${priceId}" was not found in Stripe. Please ensure it is correct.`);
+      }
+      throw new Error('Failed to create Stripe checkout session.');
+    }
+  }
+);

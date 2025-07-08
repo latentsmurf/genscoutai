@@ -49,7 +49,6 @@ type CostType = keyof Omit<SessionCosts, 'totalEstimatedCost'>;
 interface AppContextType {
   isAuthenticated: boolean;
   user: User | null;
-  isAuthLoading: boolean;
   isGuestMode: boolean;
   setIsGuestMode: (isGuest: boolean) => void;
   projects: Project[];
@@ -73,7 +72,6 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isProjectsLoading, setIsProjectsLoading] = useState(true);
@@ -142,18 +140,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth) {
-      setIsAuthLoading(false);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      setIsAuthLoading(false);
       if (currentUser) {
         setIsGuestMode(false);
-        fetchProjects(currentUser.uid);
+        await fetchProjects(currentUser.uid);
       } else {
         setProjects([]);
-        setIsProjectsLoading(false);
         setActiveProjectId(null);
       }
     });
@@ -301,7 +296,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
         isAuthenticated: !!user,
         user,
-        isAuthLoading,
         isGuestMode,
         setIsGuestMode,
         projects,

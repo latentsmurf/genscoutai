@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Bell,
   Camera,
@@ -20,7 +20,6 @@ import {
   PlusCircle,
 } from 'lucide-react';
 
-import { useAppContext } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { auth } from '@/lib/firebase';
@@ -51,32 +50,32 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function AppLayout({
   children,
+  user,
+  isGuestMode,
+  setIsGuestMode,
+  notifications,
+  markAllAsRead,
+  clearNotifications,
+  sessionCosts,
+  resetSessionCosts,
+  isAuthenticated,
 }: {
   children: React.ReactNode;
+  user: any;
+  isGuestMode: boolean;
+  setIsGuestMode: (isGuest: boolean) => void;
+  notifications: any[];
+  markAllAsRead: () => void;
+  clearNotifications: () => void;
+  sessionCosts: any;
+  resetSessionCosts: () => void;
+  isAuthenticated: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { 
-    isAuthenticated,
-    isAuthLoading,
-    user,
-    sessionCosts, 
-    resetSessionCosts, 
-    notifications, 
-    markAllAsRead, 
-    clearNotifications,
-    isGuestMode,
-    setIsGuestMode
-  } = useAppContext();
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const unreadCount = notifications.filter(n => !n.read).length;
-
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated && !isGuestMode) {
-      router.push('/login');
-    }
-  }, [isAuthenticated, isAuthLoading, isGuestMode, router]);
   
   const handleLogout = async () => {
     await signOut(auth);
@@ -84,7 +83,7 @@ export default function AppLayout({
     router.push('/login');
   };
 
-  if (isAuthLoading && !isGuestMode) {
+  if (!isAuthenticated && !isGuestMode) {
     return (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
             <div className="flex items-center space-x-4">

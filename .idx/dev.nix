@@ -9,7 +9,10 @@
     pkgs.zulu
   ];
   # Sets environment variables in the workspace
-  env = {};
+  env = {
+    # The REPLICATE_API_TOKEN is now managed via Secret Manager.
+    # REPLICATE_API_TOKEN = ""; 
+  };
   # This adds a file watcher to startup the firebase emulators. The emulators will only start if
   # a firebase.json file is written into the user's directory
   services.firebase.emulators = {
