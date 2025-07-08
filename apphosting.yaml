@@ -27,5 +27,7 @@ env:
     secret: STRIPE_SECRET_KEY
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
+  - variable: REPLICATE_API_TOKEN
+    secret: REPLICATE_API_TOKEN
   - variable: NEXT_PUBLIC_APP_URL
     value: "https://studio--genscoutai-5phlw.us-central1.hosted.app"
